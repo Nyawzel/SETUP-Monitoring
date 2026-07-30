@@ -1,0 +1,112 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Record Refund Payment{% endblock %}
+
+{% block content %}
+<div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee] p-5">
+
+    {% if messages %}
+    <div class="flex flex-col gap-2">
+        {% for message in messages %}
+        <div class="rounded-[10px] px-4 py-3 text-sm font-medium
+            {% if message.tags == 'error' %} bg-[#FDECEC] text-[#E24C4C] {% else %} bg-[#E9FBF0] text-[#22A559] {% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div>
+        <a href="{{ cancel_url }}" class="text-sm text-[#8a8a8a] hover:underline">← Back</a>
+        <h1 class="font-['Arial-Regular',_sans-serif] text-[32px] text-black leading-tight">Record Refund Payment</h1>
+        {% if project %}
+        <p class="font-['Inter',_sans-serif] text-[#8a8a8a]">
+            {{ project.title }} · {{ project.cooperator.name }} · Outstanding: ₱{{ project.remaining_balance|floatformat:0 }}
+        </p>
+        {% else %}
+        <p class="font-['Inter',_sans-serif] text-[#8a8a8a]">
+            Pick a project below, then log the payment against one of its unpaid installments.
+        </p>
+        {% endif %}
+    </div>
+
+    <div class="rounded-[20px] bg-white p-5 max-w-2xl">
+        <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
+            {% csrf_token %}
+
+            {% if project %}
+            <!-- Project is locked to the one this page was opened from —
+                 the disabled select still needs a hidden input alongside it
+                 since browsers never submit a disabled field's value; the
+                 view sets payment.project explicitly either way, but this
+                 keeps the form's own validation (which also checks
+                 cleaned_data) happy without relying on that. -->
+            <div class="flex flex-col gap-1">
+                <label class="font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a]">Project</label>
+                {{ form.project }}
+                <input type="hidden" name="project" value="{{ project.pk }}">
+            </div>
+            {% else %}
+            <div class="flex flex-col gap-1">
+                <label for="{{ form.project.id_for_label }}" class="font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a]">
+                    Project *
+                </label>
+                {{ form.project }}
+                {% for error in form.project.errors %}
+                <span class="font-['Inter',_sans-serif] text-xs text-[#E24C4C]">{{ error }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% for field in form %}
+            {% if field.name != 'project' %}
+            <div class="flex flex-col gap-1">
+                <label for="{{ field.id_for_label }}" class="font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a]">
+                    {{ field.label }}{% if field.field.required %} *{% endif %}
+                </label>
+                {{ field }}
+                {% if field.name == 'installment' %}
+                <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
+                    Optional — only unpaid installments are listed. Leave blank for a payment not tied to a specific due date.
+                </span>
+                {% endif %}
+                {% if field.help_text %}
+                <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">{{ field.help_text }}</span>
+                {% endif %}
+                {% for error in field.errors %}
+                <span class="font-['Inter',_sans-serif] text-xs text-[#E24C4C]">{{ error }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+
+            <div class="flex items-center gap-3 mt-2">
+                <button type="submit"
+                    class="h-11 rounded-[10px] px-6 font-['Outfit',_sans-serif] text-sm text-white"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                    Record Payment
+                </button>
+                <a href="{{ cancel_url }}" class="font-['Inter',_sans-serif] text-sm text-[#8a8a8a] hover:underline">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    form select, form input[type="text"], form input[type="number"], form input[type="date"] {
+        height: 44px;
+        border-radius: 10px;
+        border: 1px solid #dcdcdc;
+        padding: 0 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+    }
+    form select:disabled {
+        background: #f2f2f2;
+        color: #8a8a8a;
+    }
+</style>
+{% endblock %}

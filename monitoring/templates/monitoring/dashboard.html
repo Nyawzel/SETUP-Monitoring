@@ -1,0 +1,335 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+    <div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee]">
+
+        <!-- Page header: title + action buttons -->
+        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-5 p-[20px]">
+
+            <h1 class="w-[222px] shrink-0 pl-5 text-left font-['Arial-Regular',_sans-serif] text-[40px] text-black">
+                Dashboard
+            </h1>
+
+            <div class="flex flex-1 flex-nowrap items-center justify-end gap-2.5 px-5 min-w-0">
+
+                <!-- Add Project button — shrinks in width instead of wrapping to a new line -->
+                <a
+                    href="{% url 'project_create' %}"
+                    class="flex h-12 flex-1 min-w-0 max-w-[160px] items-center justify-center gap-2.5 rounded-[40px] px-4 py-4 transition-all duration-200 ease-out hover:scale-[1.04] hover:shadow-lg hover:brightness-110 active:scale-95"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);"
+                >
+                    <img src="{% static 'monitoring/icons/frame-90.svg' %}" class="w-[21px] h-[19px] shrink-0" alt="">
+                    <span class="truncate font-['Outfit',_sans-serif] text-lg text-white">
+                        Add Project
+                    </span>
+                </a>
+
+                <!-- Import Data button — shrinks in width instead of wrapping to a new line -->
+                <a href="{% url 'project_import' %}" class="h-12 flex-1 min-w-0 max-w-[160px] rounded-full bg-gradient-to-r from-[#7B8BFD] to-[#35B9FE] p-[2px] transition-all duration-200 ease-out hover:scale-[1.04] hover:shadow-lg active:scale-95">
+                    <div class="flex h-full w-full items-center justify-center rounded-full bg-white px-2">
+                        <span class="truncate bg-gradient-to-r from-[#7B8BFD] to-[#35B9FE] bg-clip-text font-['Outfit',_sans-serif] text-lg text-transparent">
+                            Import Data
+                        </span>
+                    </div>
+                </a>
+
+            </div>
+        </div>
+
+        <!-- ============================== -->
+        <!-- ROW 1: Status KPIs (operational) -->
+        <!-- ============================== -->
+        <span class="px-5 font-['Inter',_sans-serif] text-sm font-medium uppercase tracking-wide text-[#8a8a8a]">
+            Project Status
+        </span>
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5 px-5 py-2.5">
+
+            <!-- Total Projects (highlighted, gradient card) -->
+            <a
+                href="{% url 'project_list' %}"
+                class="flex flex-col gap-2.5 rounded-[20px] p-2.5 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]"
+                style="background: linear-gradient(180deg, rgba(122,139,253,1) 0%, rgba(65,188,253,1) 100%);"
+            >
+                <div class="flex h-[47px] items-start gap-[25px] p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-lg sm:text-xl font-medium text-white">
+                        Total Projects
+                    </span>
+                    <img src="{% static 'monitoring/icons/forward0.svg' %}" class="w-[30px] h-[30px]" alt="">
+                </div>
+                <div class="flex h-[74px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-4xl sm:text-5xl font-semibold text-white">
+                        {{ total_projects }}
+                    </span>
+                </div>
+            </a>
+
+            <!-- Phase I -->
+            <a href="{% url 'project_list' %}?status=phase_1" class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]">
+                <div class="flex h-[47px] items-center gap-3 p-2.5">
+                    <span
+                        class="flex-1 min-w-0 truncate font-['Inter',_sans-serif] text-lg sm:text-xl font-medium text-black"
+                        title="Phase I - Implementation"
+                    >
+                        Phase I
+                    </span>
+                    <img src="{% static 'monitoring/icons/forward1.svg' %}" class="w-[30px] h-[30px] shrink-0" alt="">
+                </div>
+                <div class="flex h-[74px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-4xl sm:text-5xl font-semibold text-black">
+                        {{ phase1_count }}
+                    </span>
+                </div>
+            </a>
+
+            <!-- Phase II -->
+            <a href="{% url 'project_list' %}?status=phase_2" class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]">
+                <div class="flex h-[47px] items-center gap-3 p-2.5">
+                    <span
+                        class="flex-1 min-w-0 truncate font-['Inter',_sans-serif] text-lg sm:text-xl font-medium text-black"
+                        title="Phase II - Refund"
+                    >
+                        Phase II
+                    </span>
+                    <img src="{% static 'monitoring/icons/forward2.svg' %}" class="w-[30px] h-[30px] shrink-0" alt="">
+                </div>
+                <div class="flex h-[74px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-4xl sm:text-5xl font-semibold text-black">
+                        {{ phase2_count }}
+                    </span>
+                </div>
+            </a>
+
+            <!-- Completed -->
+            <a href="{% url 'project_list' %}?status=completed" class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]">
+                <div class="flex h-[47px] items-center gap-[25px] p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-lg sm:text-xl font-medium text-black">
+                        Completed
+                    </span>
+                    <img src="{% static 'monitoring/icons/forward3.svg' %}" class="w-[30px] h-[30px]" alt="">
+                </div>
+                <div class="flex h-[74px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-4xl sm:text-5xl font-semibold text-black">
+                        {{ completed_count }}
+                    </span>
+                </div>
+            </a>
+
+            <!-- Delinquent (red accent — needs attention) -->
+            <a href="{% url 'project_list' %}?delinquent=1" class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5 border-2 border-[#FF6B6B] transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]">
+                <div class="flex h-[47px] items-center gap-[25px] p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-lg sm:text-xl font-medium text-[#FF6B6B]">
+                        Delinquent
+                    </span>
+                    <img src="{% static 'monitoring/icons/forward4.svg' %}" class="w-[30px] h-[30px]" alt="">
+                </div>
+                <div class="flex h-[74px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-4xl sm:text-5xl font-semibold text-[#FF6B6B]">
+                        {{ delinquent_count }}
+                    </span>
+                </div>
+            </a>
+
+            <!-- Pending -->
+            <a href="{% url 'project_list' %}?status=pending" class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]">
+                <div class="flex h-[47px] items-center gap-[25px] p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-lg sm:text-xl font-medium text-black">
+                        Pending
+                    </span>
+                    <img src="{% static 'monitoring/icons/forward4.svg' %}" class="w-[30px] h-[30px]" alt="">
+                </div>
+                <div class="flex h-[74px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-4xl sm:text-5xl font-semibold text-black">
+                        {{ pending_count }}
+                    </span>
+                </div>
+            </a>
+
+        </div>
+
+        <!-- ============================== -->
+        <!-- ROW 2: Financial KPIs (fiduciary) -->
+        <!-- ============================== -->
+        <span class="px-5 font-['Inter',_sans-serif] text-sm font-medium uppercase tracking-wide text-[#8a8a8a]">
+            Fund Supervision
+        </span>
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2.5 px-5 py-2.5">
+
+            <!-- Total Disbursed -->
+            <div class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5">
+                <div class="flex h-[40px] items-center p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-base sm:text-lg font-medium text-black">
+                        Total iFund Disbursed
+                    </span>
+                </div>
+                <div class="flex h-[60px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-3xl sm:text-4xl font-semibold text-black">
+                        ₱{{ total_disbursed|floatformat:0 }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Total Refunded -->
+            <div class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5">
+                <div class="flex h-[40px] items-center p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-base sm:text-lg font-medium text-black">
+                        Total Refunded
+                    </span>
+                </div>
+                <div class="flex h-[60px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-3xl sm:text-4xl font-semibold text-[#35B9FE]">
+                        ₱{{ total_refunded|floatformat:0 }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Outstanding Balance -->
+            <div class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5">
+                <div class="flex h-[40px] items-center p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-base sm:text-lg font-medium text-black">
+                        Outstanding Balance
+                    </span>
+                </div>
+                <div class="flex h-[60px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-3xl sm:text-4xl font-semibold text-[#FFC93C]">
+                        ₱{{ outstanding_balance|floatformat:0 }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Collection Rate -->
+            <div
+                class="flex flex-col gap-2.5 rounded-[20px] p-2.5"
+                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);"
+            >
+                <div class="flex h-[40px] items-center p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-base sm:text-lg font-medium text-white">
+                        Collection Rate
+                    </span>
+                </div>
+                <div class="flex h-[60px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-3xl sm:text-4xl font-semibold text-white">
+                        {{ collection_rate }}%
+                    </span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Chart panels -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-2.5 px-5 pb-2.5">
+
+            <!-- Project Status breakdown (doughnut) -->
+            <div class="h-[388px] rounded-[32px] bg-white p-5 flex flex-col">
+                <span class="font-['Inter',_sans-serif] text-xl font-medium text-black mb-2.5">
+                    Project Status
+                </span>
+                <div class="flex-1 min-h-0">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Refund collection: due vs. collected per month (grouped bar) -->
+            <div class="h-[388px] rounded-[32px] bg-white p-5 flex flex-col">
+                <span class="font-['Inter',_sans-serif] text-xl font-medium text-black mb-2.5">
+                    Refund Collection — Due vs. Collected
+                </span>
+                <div class="flex-1 min-h-0">
+                    <canvas id="refundChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Delinquent cooperators watchlist -->
+        <div id="watchlist" class="rounded-[32px] bg-white p-5 mx-5 mb-5 scroll-mt-5">
+            <span class="font-['Inter',_sans-serif] text-xl font-medium text-black mb-2.5 block">
+                Watchlist — MSMEs Behind on Refunds
+            </span>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                    <thead>
+                        <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                            <th class="py-2 pr-4">MSME</th>
+                            <th class="py-2 pr-4">Project</th>
+                            <th class="py-2 pr-4">Months Overdue</th>
+                            <th class="py-2 pr-4">Outstanding Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for project in watchlist %}
+                        <tr class="border-b border-[#f2f2f2]">
+                            <td class="py-2 pr-4">{{ project.cooperator.name }}</td>
+                            <td class="py-2 pr-4">{{ project.title }}</td>
+                            <td class="py-2 pr-4 text-[#FF6B6B] font-medium">{{ project.consecutive_missed_months }}</td>
+                            <td class="py-2 pr-4">₱{{ project.remaining_balance|floatformat:0 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="py-4 text-[#8a8a8a]">No delinquent MSMEs right now.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Data passed from the Django view (see views.py) -->
+    {{ status_counts|json_script:"status-data" }}
+    {{ monthly_refund_data|json_script:"refund-data" }}
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script>
+        const statusData = JSON.parse(document.getElementById('status-data').textContent);
+        const refundData = JSON.parse(document.getElementById('refund-data').textContent);
+
+        new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: {
+                // labels: ["Phase I", "Phase II", "Completed", "Pending", "Delinquent", "Terminated/Withdrawn"]
+                labels: statusData.labels,
+                datasets: [{
+                    data: statusData.values,
+                    backgroundColor: ['#35B9FE', '#7B8BFD', '#4ADE80', '#FFC93C', '#FF6B6B', '#B0B0B0'],
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+            }
+        });
+
+        new Chart(document.getElementById('refundChart'), {
+            type: 'bar',
+            data: {
+                labels: refundData.labels,   // e.g. ["Aug 2025", "Sep 2025", ...]
+                datasets: [
+                    {
+                        label: 'Due',
+                        data: refundData.due,
+                        backgroundColor: '#D9D9D9',
+                        borderRadius: 6,
+                    },
+                    {
+                        label: 'Collected',
+                        data: refundData.collected,
+                        backgroundColor: '#35B9FE',
+                        borderRadius: 6,
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } },
+                scales: { y: { beginAtZero: true, ticks: { callback: (v) => '₱' + v.toLocaleString() } } }
+            }
+        });
+    </script>
+{% endblock %}
