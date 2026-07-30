@@ -1,0 +1,78 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}{% if is_edit %}Edit MSME{% else %}Add MSME{% endif %}{% endblock %}
+
+{% block content %}
+<div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee] p-5">
+
+    {% if messages %}
+    <div class="flex flex-col gap-2">
+        {% for message in messages %}
+        <div class="rounded-[10px] px-4 py-3 text-sm font-medium
+            {% if message.tags == 'error' %} bg-[#FDECEC] text-[#E24C4C] {% else %} bg-[#E9FBF0] text-[#22A559] {% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div>
+        {% if is_edit %}
+        <a href="{% url 'msme_detail' msme.pk %}" class="text-sm text-[#8a8a8a] hover:underline">← Back to {{ msme.name }}</a>
+        {% else %}
+        <a href="{% url 'msme_list' %}" class="text-sm text-[#8a8a8a] hover:underline">← Back to MSMEs</a>
+        {% endif %}
+        <h1 class="font-['Arial-Regular',_sans-serif] text-[32px] text-black leading-tight">
+            {% if is_edit %}Edit MSME{% else %}Add MSME{% endif %}
+        </h1>
+    </div>
+
+    <div class="rounded-[20px] bg-white p-5 max-w-2xl">
+        <form method="post" class="flex flex-col gap-4">
+            {% csrf_token %}
+
+            {% for field in form %}
+            <div class="flex flex-col gap-1 {% if field.name == 'has_outstanding_accountabilities' %}flex-row items-center gap-2{% endif %}">
+                <label for="{{ field.id_for_label }}" class="font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a]">
+                    {{ field.label }}{% if field.field.required %} *{% endif %}
+                </label>
+                {{ field }}
+                {% if field.help_text %}
+                <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">{{ field.help_text }}</span>
+                {% endif %}
+                {% for error in field.errors %}
+                <span class="font-['Inter',_sans-serif] text-xs text-[#E24C4C]">{{ error }}</span>
+                {% endfor %}
+            </div>
+            {% endfor %}
+
+            <div class="flex items-center gap-3 mt-2">
+                <button type="submit"
+                    class="h-11 rounded-[10px] px-6 font-['Outfit',_sans-serif] text-sm text-white"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                    {% if is_edit %}Save Changes{% else %}Save MSME{% endif %}
+                </button>
+                <a href="{% if is_edit %}{% url 'msme_detail' msme.pk %}{% else %}{% url 'msme_list' %}{% endif %}"
+                    class="font-['Inter',_sans-serif] text-sm text-[#8a8a8a] hover:underline">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    form select, form textarea,
+    form input[type="text"], form input[type="number"], form input[type="email"], form input[type="date"] {
+        height: 44px;
+        border-radius: 10px;
+        border: 1px solid #dcdcdc;
+        padding: 0 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+    }
+    form textarea { height: auto; padding: 10px 12px; }
+    form input[type="checkbox"] { width: 18px; height: 18px; }
+</style>
+{% endblock %}

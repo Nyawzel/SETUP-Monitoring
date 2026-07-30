@@ -1,0 +1,157 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee] p-5">
+
+    {% if messages %}
+    <div class="flex flex-col gap-2">
+        {% for message in messages %}
+        <div class="rounded-[10px] px-4 py-3 text-sm font-medium
+            {% if message.tags == 'error' %} bg-[#FDECEC] text-[#E24C4C] {% else %} bg-[#E9FBF0] text-[#22A559] {% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <h1 class="pl-2 font-['Arial-Regular',_sans-serif] text-[40px] text-black">Settings</h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <!-- Account settings -->
+        <div class="rounded-[20px] bg-white p-5">
+            <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-3">Account</span>
+            <form method="post" class="flex flex-col gap-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_account">
+
+                {% for field in account_form %}
+                <div class="flex flex-col gap-1">
+                    <label for="{{ field.id_for_label }}" class="font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a]">
+                        {{ field.label }}
+                    </label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#E24C4C]">{{ error }}</span>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                <button type="submit"
+                    class="self-start h-11 rounded-[10px] px-6 font-['Outfit',_sans-serif] text-sm text-white"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                    Save Changes
+                </button>
+            </form>
+        </div>
+
+        <!-- Change password -->
+        <div class="rounded-[20px] bg-white p-5">
+            <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-3">Change Password</span>
+            <form method="post" class="flex flex-col gap-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="change_password">
+
+                {% for field in password_form %}
+                <div class="flex flex-col gap-1">
+                    <label for="{{ field.id_for_label }}" class="font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a]">
+                        {{ field.label }}
+                    </label>
+                    {{ field }}
+                    {% if field.help_text %}
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">{{ field.help_text|safe }}</span>
+                    {% endif %}
+                    {% for error in field.errors %}
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#E24C4C]">{{ error }}</span>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                <button type="submit"
+                    class="self-start h-11 rounded-[10px] px-6 font-['Outfit',_sans-serif] text-sm text-white"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                    Change Password
+                </button>
+            </form>
+        </div>
+
+    </div>
+
+    {% if user.is_staff %}
+    <!-- Administration (staff only) -->
+    <div class="rounded-[20px] bg-white p-5">
+        <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-1">Administration</span>
+        <p class="font-['Inter',_sans-serif] text-sm text-[#8a8a8a] mb-4">
+            Visible because your account has staff access.
+        </p>
+
+        <!-- Quick links into the admin pages staff actually use day-to-day -->
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 mb-5">
+            <a href="{% url 'admin:index' %}" class="rounded-[12px] border border-[#dcdcdc] p-4 hover:border-[#09ACED] hover:bg-[#F8FAFB]">
+                <span class="block font-['Inter',_sans-serif] text-sm font-medium text-black">Full Admin Panel</span>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Every model, full CRUD</span>
+            </a>
+            <a href="{% url 'admin:auth_user_changelist' %}" class="rounded-[12px] border border-[#dcdcdc] p-4 hover:border-[#09ACED] hover:bg-[#F8FAFB]">
+                <span class="block font-['Inter',_sans-serif] text-sm font-medium text-black">Manage Users</span>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Accounts, staff/superuser status</span>
+            </a>
+            <a href="{% url 'admin:auth_group_changelist' %}" class="rounded-[12px] border border-[#dcdcdc] p-4 hover:border-[#09ACED] hover:bg-[#F8FAFB]">
+                <span class="block font-['Inter',_sans-serif] text-sm font-medium text-black">Manage Groups</span>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Permission groups</span>
+            </a>
+            <a href="{% url 'admin:monitoring_project_changelist' %}" class="rounded-[12px] border border-[#dcdcdc] p-4 hover:border-[#09ACED] hover:bg-[#F8FAFB]">
+                <span class="block font-['Inter',_sans-serif] text-sm font-medium text-black">Projects (Admin)</span>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Bulk edits, inlines</span>
+            </a>
+        </div>
+
+        <!-- Plain user list — quick "who has access" view without leaving the site -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                <thead>
+                    <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                        <th class="py-2 pr-4">Username</th>
+                        <th class="py-2 pr-4">Name</th>
+                        <th class="py-2 pr-4">Email</th>
+                        <th class="py-2 pr-4">Staff</th>
+                        <th class="py-2 pr-4">Superuser</th>
+                        <th class="py-2 pr-4">Active</th>
+                        <th class="py-2 pr-4"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in staff_users %}
+                    <tr class="border-b border-[#f2f2f2]">
+                        <td class="py-2 pr-4 font-medium text-black">{{ u.username }}</td>
+                        <td class="py-2 pr-4">{{ u.get_full_name|default:"—" }}</td>
+                        <td class="py-2 pr-4">{{ u.email|default:"—" }}</td>
+                        <td class="py-2 pr-4">{% if u.is_staff %}Yes{% else %}—{% endif %}</td>
+                        <td class="py-2 pr-4">{% if u.is_superuser %}Yes{% else %}—{% endif %}</td>
+                        <td class="py-2 pr-4">{% if u.is_active %}Yes{% else %}<span class="text-[#E24C4C]">No</span>{% endif %}</td>
+                        <td class="py-2 pr-4 text-right">
+                            <a href="{% url 'admin:auth_user_change' u.pk %}" class="text-[#09ACED] font-medium hover:underline">Edit →</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<style>
+    form select, form input[type="text"], form input[type="email"], form input[type="password"] {
+        height: 44px;
+        border-radius: 10px;
+        border: 1px solid #dcdcdc;
+        padding: 0 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}

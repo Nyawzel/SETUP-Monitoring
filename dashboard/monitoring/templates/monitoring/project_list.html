@@ -1,0 +1,140 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Projects{% endblock %}
+
+{% block content %}
+<div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee]">
+
+    {% if messages %}
+    <div class="flex flex-col gap-2 px-5 pt-5">
+        {% for message in messages %}
+        <div class="rounded-[10px] px-4 py-3 text-sm font-medium
+            {% if message.tags == 'error' %} bg-[#FDECEC] text-[#E24C4C] {% else %} bg-[#E9FBF0] text-[#22A559] {% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Header + search/filter -->
+    <div class="flex flex-wrap items-center gap-x-2.5 gap-y-4 p-[20px]">
+        <h1 class="shrink-0 pl-5 text-left font-['Arial-Regular',_sans-serif] text-[40px] text-black">
+            Projects
+        </h1>
+
+        <div class="flex flex-1 flex-wrap items-center justify-end gap-2.5 px-5 min-w-0">
+            <form method="get" class="flex flex-wrap items-center gap-2.5 min-w-0">
+                <input
+                    type="text" name="q" value="{{ query }}" placeholder="Search MSME, project, or code"
+                    class="h-11 flex-1 min-w-[200px] max-w-[320px] rounded-[10px] bg-white border border-[#dcdcdc] px-4 font-['Inter',_sans-serif] text-sm text-black"
+                >
+                <select name="status" class="h-11 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black">
+                    <option value="">All Statuses</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <label class="h-11 flex items-center gap-2 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black cursor-pointer">
+                    <input type="checkbox" name="delinquent" value="1" {% if delinquent_filter %}checked{% endif %}>
+                    Delinquent only
+                </label>
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <button
+                    type="submit"
+                    class="h-11 rounded-[10px] px-5 font-['Outfit',_sans-serif] text-sm text-white transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:brightness-110 active:scale-95"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);"
+                >
+                    Filter
+                </button>
+            </form>
+
+            <a href="{% url 'project_import' %}"
+                class="h-11 flex items-center rounded-[10px] px-5 border border-[#09ACED] font-['Outfit',_sans-serif] text-sm text-[#09ACED] transition-all duration-200 hover:bg-[#E6F7FF] hover:scale-[1.03] hover:shadow-md active:scale-95">
+                Import from Excel
+            </a>
+            <a href="{% url 'project_create' %}"
+                class="h-11 flex items-center rounded-[10px] px-5 font-['Outfit',_sans-serif] text-sm text-white transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:brightness-110 active:scale-95"
+                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                + Add Project
+            </a>
+        </div>
+    </div>
+
+    <!-- Projects table -->
+    <div class="rounded-[20px] bg-white mx-5 mb-5 overflow-x-auto">
+        <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+            <thead>
+                <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                    <th class="py-3 pl-5 pr-4">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'title' %}-title{% else %}title{% endif %}" class="hover:text-black">
+                            Project {% if sort == 'title' %}↑{% elif sort == '-title' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'msme' %}-msme{% else %}msme{% endif %}" class="hover:text-black">
+                            MSME {% if sort == 'msme' %}↑{% elif sort == '-msme' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'status' %}-status{% else %}status{% endif %}" class="hover:text-black">
+                            Status {% if sort == 'status' %}↑{% elif sort == '-status' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'amount' %}-amount{% else %}amount{% endif %}" class="hover:text-black">
+                            iFund Amount {% if sort == 'amount' %}↑{% elif sort == '-amount' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">Outstanding</th>
+                    <th class="py-3 pr-4">Requirements</th>
+                    <th class="py-3 pr-4">Overdue Reports</th>
+                    <th class="py-3 pr-4"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr class="border-b border-[#f2f2f2] hover:bg-[#f8fafb]">
+                    <td class="py-3 pl-5 pr-4 font-medium text-black">{{ project.title }}</td>
+                    <td class="py-3 pr-4">{{ project.cooperator.name }}</td>
+                    <td class="py-3 pr-4">
+                        <span class="inline-block rounded-full px-3 py-1 text-xs font-medium
+                            {% if project.status == 'phase_1' %} bg-[#E6F7FF] text-[#09ACED]
+                            {% elif project.status == 'phase_2' %} bg-[#EEF0FF] text-[#7B8BFD]
+                            {% elif project.status == 'completed' %} bg-[#E9FBF0] text-[#22A559]
+                            {% elif project.status == 'pending' %} bg-[#FFF8E6] text-[#C98A00]
+                            {% else %} bg-[#FDECEC] text-[#E24C4C]
+                            {% endif %}">
+                            {{ project.get_status_display }}
+                        </span>
+                        {% if project.is_delinquent_annotated %}
+                        <span class="ml-1 inline-block rounded-full bg-[#FDECEC] px-2 py-1 text-xs font-medium text-[#E24C4C]">Delinquent</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 pr-4">₱{{ project.total_ifund_amount|floatformat:0 }}</td>
+                    <td class="py-3 pr-4">₱{{ project.remaining_balance|floatformat:0 }}</td>
+                    <td class="py-3 pr-4">{{ project.requirements_completion_percent }}%</td>
+                    <td class="py-3 pr-4">
+                        {% if project.overdue_reports_count %}
+                            <span class="text-[#E24C4C] font-medium">{{ project.overdue_reports_count }}</span>
+                        {% else %}
+                            <span class="text-[#8a8a8a]">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 pr-5 text-right">
+                        <a href="{% url 'project_detail' project.pk %}" class="text-[#09ACED] font-medium hover:underline transition-colors duration-150">
+                            View →
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="py-6 pl-5 text-[#8a8a8a]">No projects match your filters.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}

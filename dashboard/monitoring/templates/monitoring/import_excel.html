@@ -1,0 +1,77 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Import Projects from Excel{% endblock %}
+
+{% block content %}
+<div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee] p-5">
+
+    {% if messages %}
+    <div class="flex flex-col gap-2">
+        {% for message in messages %}
+        <div class="rounded-[10px] px-4 py-3 text-sm font-medium
+            {% if message.tags == 'error' %} bg-[#FDECEC] text-[#E24C4C] {% else %} bg-[#E9FBF0] text-[#22A559] {% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div>
+        <a href="{% url 'project_list' %}" class="text-sm text-[#8a8a8a] hover:underline">← Back to Projects</a>
+        <h1 class="font-['Arial-Regular',_sans-serif] text-[32px] text-black leading-tight">Import Projects from Excel</h1>
+    </div>
+
+    <div class="rounded-[20px] bg-white p-5 max-w-2xl flex flex-col gap-4">
+        <div class="rounded-[10px] bg-[#F8FAFB] p-4 font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">
+            <span class="block font-medium text-black mb-2">Expected columns (first row is a header, data starts on row 2):</span>
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="text-[#8a8a8a]">
+                        <th class="pr-4 py-1">A</th><th class="pr-4 py-1">B</th><th class="pr-4 py-1">C</th>
+                        <th class="pr-4 py-1">D</th><th class="pr-4 py-1">E</th><th class="pr-4 py-1">F</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="text-black">
+                        <td class="pr-4 py-1">MSME Name</td>
+                        <td class="pr-4 py-1">Project Title</td>
+                        <td class="pr-4 py-1">Project Code</td>
+                        <td class="pr-4 py-1">Status</td>
+                        <td class="pr-4 py-1">iFund Amount</td>
+                        <td class="pr-4 py-1">Fund Source</td>
+                    </tr>
+                </tbody>
+            </table>
+            <span class="block mt-2">
+                Status must be one of: pending, phase_1, phase_2, completed, terminated, withdrawn (defaults to "pending" if blank/unrecognized).
+                Fund Source must be setup_budget or lgia (defaults to "setup_budget"). An MSME name that doesn't exist yet is created automatically.
+            </span>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
+            {% csrf_token %}
+            <div class="flex flex-col gap-1">
+                <label for="{{ form.file.id_for_label }}" class="font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a]">
+                    {{ form.file.label }}
+                </label>
+                {{ form.file }}
+                {% for error in form.file.errors %}
+                <span class="font-['Inter',_sans-serif] text-xs text-[#E24C4C]">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="flex items-center gap-3 mt-2">
+                <button type="submit"
+                    class="h-11 rounded-[10px] px-6 font-['Outfit',_sans-serif] text-sm text-white"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                    Upload &amp; Import
+                </button>
+                <a href="{% url 'project_list' %}" class="font-['Inter',_sans-serif] text-sm text-[#8a8a8a] hover:underline">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
