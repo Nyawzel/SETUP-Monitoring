@@ -1,0 +1,72 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        @font-face {
+            font-family: 'Gotham-Black';
+            src: url("{% static 'monitoring/fonts/GothamBlack.woff2' %}") format('woff2'),
+                 url("{% static 'monitoring/fonts/GothamBlack.woff' %}") format('woff');
+            font-weight: 900;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
+
+    <title>Sign In — DOST SETUP</title>
+</head>
+<body class="bg-[#f8fafb] h-screen flex items-center justify-center">
+
+    <div class="w-full max-w-sm rounded-[20px] bg-white p-8 shadow-sm">
+
+        <div class="flex items-center gap-2.5 mb-6">
+            <img src="{% static 'monitoring/images/image-30.png' %}" class="w-10 h-10 object-cover" alt="DOST logo">
+            <span class="font-['Gotham-Black',_sans-serif] text-lg font-black text-black">DOST SARGEN</span>
+        </div>
+
+        <h1 class="font-['Arial-Regular',_sans-serif] text-2xl text-black mb-1">Sign In</h1>
+        <p class="font-['Inter',_sans-serif] text-sm text-[#8a8a8a] mb-6">SETUP Projects Management System</p>
+
+        {% if form.errors %}
+        <div class="rounded-[10px] bg-[#FDECEC] text-[#E24C4C] px-4 py-3 text-sm font-medium mb-4">
+            Incorrect username or password. Please try again.
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+
+            <label class="block font-['Inter',_sans-serif] text-sm font-medium text-black mb-1">Username</label>
+            <input
+                type="text" name="username" autofocus required
+                class="w-full h-11 rounded-[10px] border border-[#dcdcdc] px-3 mb-4 font-['Inter',_sans-serif] text-sm"
+            >
+
+            <label class="block font-['Inter',_sans-serif] text-sm font-medium text-black mb-1">Password</label>
+            <input
+                type="password" name="password" required
+                class="w-full h-11 rounded-[10px] border border-[#dcdcdc] px-3 mb-6 font-['Inter',_sans-serif] text-sm"
+            >
+
+            <button
+                type="submit"
+                class="w-full h-12 rounded-[40px] font-['Outfit',_sans-serif] text-lg text-white"
+                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);"
+            >
+                Sign In
+            </button>
+        </form>
+
+    </div>
+
+</body>
+</html>

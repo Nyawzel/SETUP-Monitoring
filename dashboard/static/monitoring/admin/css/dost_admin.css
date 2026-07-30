@@ -1,0 +1,67 @@
+/*
+ * DOST SETUP brand theme for Django admin.
+ * Django's admin CSS (since Django 3.2+) exposes its palette as CSS custom
+ * properties on :root — overriding them re-themes the whole admin site
+ * without touching or copying Django's actual layout templates/CSS.
+ */
+
+:root {
+    --primary: #09ACED;
+    --primary-fg: #fff;
+
+    --header-color: #fff;
+    --header-branding-color: #fff;
+    --header-bg: #09ACED;
+    --header-link-color: #fff;
+
+    --breadcrumbs-fg: #fff;
+    --breadcrumbs-link-fg: #fff;
+    --breadcrumbs-bg: #1e3466;
+
+    --link-fg: #09ACED;
+    --link-hover-color: #35B9FE;
+    --link-selected-fg: #7B8BFD;
+
+    --button-bg: linear-gradient(270deg, #35B9FE 0%, #7B8BFD 100%);
+    --button-fg: #fff;
+    --button-hover-bg: linear-gradient(270deg, #7B8BFD 0%, #35B9FE 100%);
+
+    --default-button-bg: #1e3466;
+    --default-button-hover-bg: #09ACED;
+
+    --object-tools-bg: #7B8BFD;
+    --object-tools-hover-bg: #35B9FE;
+
+    --font-family-primary: 'Inter', -apple-system, sans-serif;
+}
+
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+}
+
+/* Rounded, card-like modules to match the dashboard's look */
+.module {
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.module h2, .module caption, .inline-group h2 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+}
+
+/* Buttons: rounded pill shape to match the dashboard's Add Project/Import
+   Data buttons */
+.button, input[type="submit"], input[type="button"], .submit-row input, a.button {
+    border-radius: 999px !important;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+}
+
+#header {
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+div.breadcrumbs {
+    font-family: 'Inter', sans-serif;
+}

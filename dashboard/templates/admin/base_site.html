@@ -1,0 +1,166 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{# This overrides Django's built-in admin/base_site.html — here
+   correctly falls through to the ORIGINAL template shipped by
+   django.contrib.admin, not this file itself. That's standard Django
+   behavior for admin template overrides, not a bug. #}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <!-- Tailwind is needed here because the header below reuses the exact
+         Tailwind classes from the public site's navbar. Preflight (Tailwind's
+         CSS reset) is disabled — it was resetting default browser styling
+         that Django's OWN admin widgets rely on (inline delete icons, the
+         raw-id lookup popup's search box, etc.), breaking things well
+         outside our custom header. Utility classes (flex, gap-2.5, w-10,
+         rounded-full, and so on) work fine without Preflight — it's purely
+         a reset layer, not required for utilities to apply. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            corePlugins: { preflight: false }
+        };
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        @font-face {
+            font-family: 'Gotham-Black';
+            src: url("{% static 'monitoring/fonts/GothamBlack.woff2' %}") format('woff2'),
+                 url("{% static 'monitoring/fonts/GothamBlack.woff' %}") format('woff');
+            font-weight: 900;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
+
+    <link rel="stylesheet" href="{% static 'monitoring/admin/css/dost_admin.css' %}">
+    <link rel="stylesheet" href="{% static 'monitoring/admin/css/dropzone.css' %}">
+
+    <!-- Preflight is off (see note above), which also means box-sizing:
+         border-box isn't applied globally anymore. Tailwind's w-/h-/p-
+         utilities assume border-box, so without this, our header's own
+         padding gets ADDED on top of w-full instead of living inside it —
+         that's what was pushing the navbar past the edge of the browser.
+         Scoped to our own header only, so it can't affect admin's widgets. -->
+    <style>
+        #dost-admin-header, #dost-admin-header *, #dost-admin-header *::before, #dost-admin-header *::after {
+            box-sizing: border-box;
+        }
+        /* Django's own #header already has padding; our inner header supplies
+           its own, so without this they'd stack and overflow further. */
+        #header {
+            padding: 0 !important;
+        }
+    </style>
+{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script src="{% static 'monitoring/admin/js/dropzone.js' %}" defer></script>
+{% endblock %}
+
+{% block header %}
+<div id="dost-admin-header" class="w-full h-[70px] flex items-center gap-2.5 border-b border-[#a3a3a3] bg-white px-6 py-3.5 shrink-0 relative z-50">
+
+    <a href="{% url 'dashboard' %}" class="shrink-0">
+        <img src="{% static 'monitoring/images/image-30.png' %}" class="w-12 h-[47px] object-cover" alt="DOST logo">
+    </a>
+
+    <span class="w-[70px] font-['Gotham-Black',_sans-serif] text-base leading-tight font-black text-black">
+        DOST SARGEN
+    </span>
+
+    <img src="{% static 'monitoring/icons/line0.svg' %}" class="[display:none] lg:[display:block] w-1.5 h-[36px]" alt="">
+
+    <span class="[display:none] lg:[display:block] w-[178px] font-['Gotham-Black',_sans-serif] text-base leading-tight font-black text-[#1e3466]">
+        SETUP Projects Management System
+    </span>
+
+    <img
+        src="{% static 'monitoring/images/image-40.png' %}"
+        class="[display:none] md:[display:block] w-[136px] h-[45px] object-cover"
+        alt="Partner logo"
+    >
+
+    <!-- Takes the search bar's slot from the public navbar — plain text,
+         not styled like a search input, since it isn't one -->
+    <div class="[display:none] sm:[display:flex] flex-1 items-center px-4">
+        <span class="font-['Gotham-Black',_sans-serif] text-base leading-tight font-black text-black">
+            Admin Panel
+        </span>
+    </div>
+
+    <div class="flex flex-1 items-center justify-end gap-3 p-2.5">
+        {% if has_permission %}
+        <span class="[display:none] sm:[display:inline] font-['Inter',_sans-serif] text-sm text-[#8a8a8a] whitespace-nowrap">
+            {% firstof user.first_name user.username %}
+        </span>
+        {% endif %}
+    </div>
+
+    <div class="relative w-10 h-10 shrink-0">
+        <button type="button" id="dost-user-menu-btn" class="relative w-10 h-10 block cursor-pointer appearance-none bg-transparent border-0 p-0 m-0" aria-haspopup="true" aria-expanded="false">
+            <div class="w-[39px] h-[39px] rounded-full bg-[#d9d9d9]"></div>
+            <img
+                src="{% static 'monitoring/icons/user1.svg' %}"
+                class="absolute left-[9px] top-[9px] w-[23px] h-[23px]"
+                alt="User avatar"
+            >
+        </button>
+
+        {% if has_permission %}
+        <!-- Click-to-toggle dropdown for the account actions Django admin
+             needs (view site / change password / log out) — see the script
+             at the bottom of this file -->
+        <div id="dost-user-menu-dropdown" class="absolute right-0 top-[44px] hidden rounded-[10px] border border-[#e5e5e5] bg-white py-2 shadow-lg z-50 min-w-[180px]">
+            {% if site_url %}
+            <a href="{{ site_url }}" class="block px-4 py-2 font-['Inter',_sans-serif] text-sm text-black hover:bg-[#f8fafb]">
+                View site
+            </a>
+            {% endif %}
+            {% if user.has_usable_password %}
+            <a href="{% url 'admin:password_change' %}" class="block px-4 py-2 font-['Inter',_sans-serif] text-sm text-black hover:bg-[#f8fafb]">
+                Change password
+            </a>
+            {% endif %}
+            <a href="{% url 'admin:logout' %}" class="block px-4 py-2 font-['Inter',_sans-serif] text-sm text-[#E24C4C] hover:bg-[#f8fafb]">
+                Log out
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block branding %}{% endblock %}
+{% block nav-global %}{% endblock %}
+
+{% block footer %}
+    {{ block.super }}
+    <script>
+        (function () {
+            var btn = document.getElementById('dost-user-menu-btn');
+            var menu = document.getElementById('dost-user-menu-dropdown');
+            if (!btn || !menu) return;
+
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = !menu.classList.contains('hidden');
+                menu.classList.toggle('hidden', isOpen);
+                btn.setAttribute('aria-expanded', String(!isOpen));
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== btn) {
+                    menu.classList.add('hidden');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+        })();
+    </script>
+{% endblock %}
