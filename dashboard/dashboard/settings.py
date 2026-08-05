@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-4*0@8#$^4w$q42t0qwzix7d-r^#m4!ka#r-y*93&2_x94=y+=(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['dostxiisetup.pythonanywhere.com']
 
 
 # Application definition
@@ -131,68 +131,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'dashboard'
-
-# ---------------------------------------------------------------------------
-# ADD THIS to the BOTTOM of your existing dashboard/settings.py.
-# Some of these override settings already defined earlier in the file
-# (DEBUG, ALLOWED_HOSTS, DATABASES, MEDIA_ROOT) — that's intentional, Django
-# uses whichever value is set LAST in the file.
-# ---------------------------------------------------------------------------
-
-import os
-import sys
-
-# --- Detect whether we're running as a bundled .exe or as normal `python
-# manage.py runserver` during development. PyInstaller sets sys.frozen. ---
-IS_FROZEN = getattr(sys, 'frozen', False)
-
-# STATIC_ROOT needs a value in BOTH cases:
-#  - dev mode: this is where `collectstatic` writes to, BEFORE you build
-#    the exe (it needs somewhere real on disk to write to — that's what
-#    was missing and caused the ImproperlyConfigured error).
-#  - frozen mode: this is where whitenoise reads the already-collected
-#    files back FROM, once they're bundled inside the exe.
-# Both point at the same place: a "staticfiles" folder that either sits
-# next to manage.py (dev) or was bundled by --add-data (frozen) — see the
-# build_exe.bat command, which bundles "staticfiles" to match this exactly.
-STATIC_ROOT = os.path.join(getattr(sys, '_MEIPASS', BASE_DIR), 'staticfiles')
-
-# Whitenoise storage — set UNCONDITIONALLY (not just when frozen), because
-# `collectstatic` needs to be run with this SAME storage backend at build
-# time (in normal dev mode) for its output to match what the exe expects
-# at runtime. Using the plain Compressed storage (not the Manifest variant)
-# deliberately — the Manifest version needs its own separate build-time
-# pass to generate a hash-named-file manifest, which isn't worth the
-# complexity for a single-computer desktop app with no browser caching
-# concerns to solve.
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
-
-# Whitenoise middleware — also set UNCONDITIONALLY (not just when frozen).
-# run_app.py always serves through waitress (a plain WSGI server), whether
-# it's running frozen as the built .exe OR as a plain script during
-# development. `manage.py runserver`'s automatic DEBUG static-file serving
-# is runserver-specific plumbing that waitress doesn't get for free — so
-# without whitenoise here, static files 404 any time the app is launched
-# via run_app.py instead of runserver, frozen or not. Must sit right after
-# SecurityMiddleware.
-MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
-
-if IS_FROZEN:
-    # Running as a bundled .exe — read-only bundle dir, so DB/media go to
-    # a writable per-user folder instead. This is what makes data survive
-    # between app launches (and between reinstalls of a NEW version of the
-    # exe, since this folder lives outside wherever the .exe itself is).
-    APP_DATA_DIR = os.path.join(os.environ['LOCALAPPDATA'], 'DOST-SETUP-Monitor')
-    os.makedirs(APP_DATA_DIR, exist_ok=True)
-
-    DEBUG = False
-    ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
-
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(APP_DATA_DIR, 'db.sqlite3'),
-        }
-    }
-
-    MEDIA_ROOT = os.path.join(APP_DATA_DIR, 'media')
