@@ -1,8 +1,11 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
 from .models import (
     Project, ProjectRequirement, MonitoringReport, Cooperator,
     BudgetLineItem, RefundPayment, RefundInstallment, ImpactRecord,
+    ProjectQuarterlyImpact, Equipment,
 )
 
 
@@ -37,14 +40,39 @@ class ProjectForm(forms.ModelForm):
             'total_ifund_amount', 'fund_source',
             'phase1_start_date', 'phase1_expected_end_date',
             'refund_period_years', 'refund_start_date',
-            'jobs_created', 'notes',
+            'notes',
         ]
         widgets = {
             'phase1_start_date': forms.DateInput(attrs={'type': 'date'}),
             'phase1_expected_end_date': forms.DateInput(attrs={'type': 'date'}),
             'refund_start_date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 3}),
+            # Without an explicit step, <input type="number"> defaults to
+            # step="1" — browsers then reject decimal values like 45000.50
+            # on submit as "not a valid value", not just displaying them
+            # wrong. step="0.01" allows centavos; found this was missing
+            # everywhere decimal money fields are edited, not just here.
+            'total_ifund_amount': forms.NumberInput(attrs={'step': '0.01'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Without this, the dropdown falls back to whatever order Cooperator
+        # rows happen to be in (usually creation order) — alphabetical by
+        # name is what actually helps someone scanning/typing to find one.
+        self.fields['cooperator'].queryset = Cooperator.objects.order_by('name')
+
+    def clean_total_ifund_amount(self):
+        """
+        total_ifund_amount is blank=True on the model (so this field isn't
+        required in the form), but it's NOT null=True at the DB level —
+        remaining_balance/refund_progress_percent do arithmetic on it, and
+        a real None would crash both. Left blank, Django's form gives back
+        None as the cleaned value; this converts that to Decimal("0")
+        before it ever reaches .save(), matching the model field's own
+        default and avoiding a NOT NULL error at the database.
+        """
+        return self.cleaned_data.get('total_ifund_amount') or Decimal("0")
 
 
 class ProjectPhotoForm(forms.ModelForm):
@@ -95,6 +123,12 @@ class ProjectStatusForm(forms.ModelForm):
         paperwork for that stage is actually in hand. Moving to terminated/
         withdrawn is never blocked this way, since those are exits, not
         forward progress (see Project.can_advance_to).
+
+        Completed has a second gate on top of the checklist: the refund
+        must be fully paid off. That check has no matching
+        ProjectRequirement row to list by name, so it needs its own
+        message rather than falling through to the generic "still
+        missing: ..." wording below.
         """
         new_status = self.cleaned_data['status']
 
@@ -103,6 +137,11 @@ class ProjectStatusForm(forms.ModelForm):
         # so self.instance.status is the OLD status, which is exactly what
         # can_advance_to()/missing_requirements_for() need to check against.
         if new_status != self.instance.status and not self.instance.can_advance_to(new_status):
+            if new_status == Project.Status.COMPLETED and self.instance.remaining_balance > 0:
+                raise forms.ValidationError(
+                    f'Can\'t mark this Completed yet — ₱{self.instance.remaining_balance:,.2f} '
+                    f'of the refund is still outstanding.'
+                )
             missing = self.instance.missing_requirements_for(new_status)
             missing_names = ", ".join(r.get_requirement_type_display() for r in missing)
             status_label = dict(Project.Status.choices).get(new_status, new_status)
@@ -150,6 +189,61 @@ class BudgetLineItemForm(forms.ModelForm):
     class Meta:
         model = BudgetLineItem
         fields = ['description', 'category', 'approved_amount', 'disbursed_amount']
+        widgets = {
+            'approved_amount': forms.NumberInput(attrs={'step': '0.01'}),
+            'disbursed_amount': forms.NumberInput(attrs={'step': '0.01'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Nothing may have been disbursed yet at the time this line item
+        # is entered/edited — not required in the form, same reasoning as
+        # clean_total_ifund_amount on ProjectForm below.
+        self.fields['disbursed_amount'].required = False
+
+    def clean_disbursed_amount(self):
+        """
+        disbursed_amount has default=Decimal("0") on the model but is NOT
+        null=True — left blank, Django's form gives back None as the
+        cleaned value, which would hit a NOT NULL error at the database
+        rather than a form-validation error. Converts blank to
+        Decimal("0") first, matching the model field's own default.
+        """
+        return self.cleaned_data.get('disbursed_amount') or Decimal("0")
+
+
+class BudgetLineItemCreateForm(forms.ModelForm):
+    """
+    Add a new Line-Item Budget entry — used both from the Funding page
+    (any project) and from a project's own detail page (project
+    pre-locked). Same project-lock pattern as RefundPaymentCreateForm
+    below: pass project=<Project instance> to disable and pre-fill the
+    project field instead of showing it as a dropdown.
+    """
+
+    class Meta:
+        model = BudgetLineItem
+        fields = ['project', 'description', 'category', 'approved_amount', 'disbursed_amount']
+        widgets = {
+            'approved_amount': forms.NumberInput(attrs={'step': '0.01'}),
+            'disbursed_amount': forms.NumberInput(attrs={'step': '0.01'}),
+        }
+
+    def __init__(self, *args, project=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['project'].queryset = Project.objects.order_by('title')
+        if project is not None:
+            self.fields['project'].initial = project
+            self.fields['project'].disabled = True
+        # Nothing may have been disbursed yet when a line item is first
+        # created — not required in the form; see clean_disbursed_amount.
+        self.fields['disbursed_amount'].required = False
+
+    def clean_disbursed_amount(self):
+        """Blank in the form → Decimal("0"), matching the model field's
+        own default (see BudgetLineItemForm.clean_disbursed_amount for
+        why this can't just be left as Django's default None)."""
+        return self.cleaned_data.get('disbursed_amount') or Decimal("0")
 
 
 class ImpactRecordForm(forms.ModelForm):
@@ -161,6 +255,9 @@ class ImpactRecordForm(forms.ModelForm):
             'year', 'quarter', 'entities_assisted', 'jobs_created',
             'technology_interventions', 'export_firms_assisted', 'gross_sales', 'remarks',
         ]
+        widgets = {
+            'gross_sales': forms.NumberInput(attrs={'step': '0.01'}),
+        }
 
 
 class RefundPaymentForm(forms.ModelForm):
@@ -173,6 +270,7 @@ class RefundPaymentForm(forms.ModelForm):
         widgets = {
             'date_paid': forms.DateInput(attrs={'type': 'date'}),
             'receipt_file': forms.ClearableFileInput(attrs={'data-dz-placeholder': 'Drag receipt here or click to browse'}),
+            'amount_paid': forms.NumberInput(attrs={'step': '0.01'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -205,6 +303,7 @@ class RefundPaymentCreateForm(forms.ModelForm):
         widgets = {
             'date_paid': forms.DateInput(attrs={'type': 'date'}),
             'receipt_file': forms.ClearableFileInput(attrs={'data-dz-placeholder': 'Drag receipt here or click to browse'}),
+            'amount_paid': forms.NumberInput(attrs={'step': '0.01'}),
         }
 
     def __init__(self, *args, project=None, **kwargs):
@@ -221,3 +320,60 @@ class RefundPaymentCreateForm(forms.ModelForm):
             self.fields['installment'].queryset = RefundInstallment.objects.filter(
                 status=RefundInstallment.Status.UNPAID
             ).select_related('project').order_by('project__title', 'due_date')
+
+class ProjectImpactDataForm(forms.ModelForm):
+    """Quick inline update for the two project-level numbers that feed
+    the Impact KPI page's project-derived estimate (see
+    ImpactRecord.compute_project_estimate) — jobs created and gross
+    sales, typically filled in once Phase I implementation is done."""
+    class Meta:
+        model = Project
+        fields = ['jobs_created', 'gross_sales']
+        widgets = {
+            'gross_sales': forms.NumberInput(attrs={'step': '0.01'}),
+        }
+
+
+class ProjectQuarterlyImpactForm(forms.ModelForm):
+    """
+    Log THIS quarter's Jobs Created / Gross Sales for one project — the
+    actual per-quarter increment that ImpactRecord.compute_project_estimate
+    now sums, as opposed to ProjectImpactDataForm above (which edits
+    Project.jobs_created/gross_sales, a single lifetime/baseline figure
+    with no notion of which quarter it belongs to).
+
+    Re-submitting the same (project, year, quarter) updates that entry
+    instead of creating a duplicate — same pattern as ImpactRecordForm on
+    the office-wide Impact KPI page.
+    """
+
+    class Meta:
+        model = ProjectQuarterlyImpact
+        fields = ['year', 'quarter', 'jobs_created', 'gross_sales', 'remarks']
+        widgets = {
+            'gross_sales': forms.NumberInput(attrs={'step': '0.01'}),
+        }
+
+
+class EquipmentCreateForm(forms.ModelForm):
+    """
+    Add a new Equipment record — the project detail page's "+ Add
+    Equipment" button. Unlike Budget Line Items / Refund Payments,
+    equipment has no office-wide "any project" entry point, so this only
+    ever runs with the project pre-locked (project=<Project instance>),
+    same locking pattern as BudgetLineItemCreateForm/RefundPaymentCreateForm.
+    """
+
+    class Meta:
+        model = Equipment
+        fields = ['project', 'name', 'specification', 'supplier_fabricator', 'acquisition_cost', 'status']
+        widgets = {
+            'specification': forms.Textarea(attrs={'rows': 2}),
+            'acquisition_cost': forms.NumberInput(attrs={'step': '0.01'}),
+        }
+
+    def __init__(self, *args, project=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if project is not None:
+            self.fields['project'].initial = project
+            self.fields['project'].disabled = True

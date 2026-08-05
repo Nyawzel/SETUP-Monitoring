@@ -24,7 +24,9 @@
         </h1>
 
         <div class="flex flex-1 flex-wrap items-center justify-end gap-2.5 px-5 min-w-0">
-            <form method="get" class="flex flex-wrap items-center gap-2.5 min-w-0">
+            <form method="get"
+                hx-get="{% url 'project_list' %}" hx-target="#projects-table-container" hx-select="#projects-table-container" hx-swap="outerHTML" hx-push-url="true"
+                class="flex flex-wrap items-center gap-2.5 min-w-0">
                 <input
                     type="text" name="q" value="{{ query }}" placeholder="Search MSME, project, or code"
                     class="h-11 flex-1 min-w-[200px] max-w-[320px] rounded-[10px] bg-white border border-[#dcdcdc] px-4 font-['Inter',_sans-serif] text-sm text-black"
@@ -35,6 +37,10 @@
                     <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
+                <label class="h-11 flex items-center gap-2 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black cursor-pointer">
+                    <input type="checkbox" name="past_due" value="1" {% if past_due_filter %}checked{% endif %}>
+                    Past due only
+                </label>
                 <label class="h-11 flex items-center gap-2 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black cursor-pointer">
                     <input type="checkbox" name="delinquent" value="1" {% if delinquent_filter %}checked{% endif %}>
                     Delinquent only
@@ -61,28 +67,44 @@
         </div>
     </div>
 
-    <!-- Projects table -->
-    <div class="rounded-[20px] bg-white mx-5 mb-5 overflow-x-auto">
+    <!-- Projects table — id'd so the sort links below can swap just this
+         div via htmx instead of reloading the whole page. hx-select picks
+         this same #projects-table-container out of the full page htmx
+         fetches, so the view itself needs no changes: it keeps rendering
+         the normal full page every time, htmx just extracts this piece. -->
+    <div id="projects-table-container" class="rounded-[20px] bg-white mx-5 mb-5 overflow-x-auto">
         <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
             <thead>
                 <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
                     <th class="py-3 pl-5 pr-4">
-                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'title' %}-title{% else %}title{% endif %}" class="hover:text-black">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'title' %}-title{% else %}title{% endif %}"
+                            hx-get="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'title' %}-title{% else %}title{% endif %}"
+                            hx-target="#projects-table-container" hx-select="#projects-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black">
                             Project {% if sort == 'title' %}↑{% elif sort == '-title' %}↓{% endif %}
                         </a>
                     </th>
                     <th class="py-3 pr-4">
-                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'msme' %}-msme{% else %}msme{% endif %}" class="hover:text-black">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'msme' %}-msme{% else %}msme{% endif %}"
+                            hx-get="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'msme' %}-msme{% else %}msme{% endif %}"
+                            hx-target="#projects-table-container" hx-select="#projects-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black">
                             MSME {% if sort == 'msme' %}↑{% elif sort == '-msme' %}↓{% endif %}
                         </a>
                     </th>
                     <th class="py-3 pr-4">
-                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'status' %}-status{% else %}status{% endif %}" class="hover:text-black">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'status' %}-status{% else %}status{% endif %}"
+                            hx-get="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'status' %}-status{% else %}status{% endif %}"
+                            hx-target="#projects-table-container" hx-select="#projects-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black">
                             Status {% if sort == 'status' %}↑{% elif sort == '-status' %}↓{% endif %}
                         </a>
                     </th>
                     <th class="py-3 pr-4">
-                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&sort={% if sort == 'amount' %}-amount{% else %}amount{% endif %}" class="hover:text-black">
+                        <a href="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'amount' %}-amount{% else %}amount{% endif %}"
+                            hx-get="?q={{ query }}&status={{ status_filter }}&delinquent={{ delinquent_filter|yesno:"1," }}&past_due={{ past_due_filter|yesno:"1," }}&sort={% if sort == 'amount' %}-amount{% else %}amount{% endif %}"
+                            hx-target="#projects-table-container" hx-select="#projects-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black">
                             iFund Amount {% if sort == 'amount' %}↑{% elif sort == '-amount' %}↓{% endif %}
                         </a>
                     </th>
@@ -109,10 +131,12 @@
                         </span>
                         {% if project.is_delinquent_annotated %}
                         <span class="ml-1 inline-block rounded-full bg-[#FDECEC] px-2 py-1 text-xs font-medium text-[#E24C4C]">Delinquent</span>
+                        {% elif project.is_past_due_annotated %}
+                        <span class="ml-1 inline-block rounded-full bg-[#FFF3E0] px-2 py-1 text-xs font-medium text-[#F5A623]">Past Due</span>
                         {% endif %}
                     </td>
-                    <td class="py-3 pr-4">₱{{ project.total_ifund_amount|floatformat:0 }}</td>
-                    <td class="py-3 pr-4">₱{{ project.remaining_balance|floatformat:0 }}</td>
+                    <td class="py-3 pr-4">₱{{ project.total_ifund_amount|floatformat:2 }}</td>
+                    <td class="py-3 pr-4">₱{{ project.remaining_balance|floatformat:2 }}</td>
                     <td class="py-3 pr-4">{{ project.requirements_completion_percent }}%</td>
                     <td class="py-3 pr-4">
                         {% if project.overdue_reports_count %}

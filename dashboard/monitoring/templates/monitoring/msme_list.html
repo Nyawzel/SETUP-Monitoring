@@ -24,7 +24,10 @@
         </h1>
 
         <div class="flex flex-1 flex-wrap items-center justify-end gap-2.5 px-5 min-w-0">
-            <form method="get" class="flex flex-wrap items-center gap-2.5 min-w-0">
+            <form method="get"
+                hx-get="{% url 'msme_list' %}" hx-target="#msmes-table-container" hx-select="#msmes-table-container" hx-swap="outerHTML" hx-push-url="true"
+                class="flex flex-wrap items-center gap-2.5 min-w-0">
+                <input type="hidden" name="sort" value="{{ sort }}">
                 <input
                     type="text" name="q" value="{{ query }}" placeholder="Search MSME name"
                     class="h-11 flex-1 min-w-[200px] max-w-[320px] rounded-[10px] bg-white border border-[#dcdcdc] px-4 font-['Inter',_sans-serif] text-sm text-black"
@@ -53,15 +56,50 @@
     </div>
 
     <!-- MSME table -->
-    <div class="rounded-[20px] bg-white mx-5 mb-5 overflow-x-auto">
+    <div id="msmes-table-container" class="rounded-[20px] bg-white mx-5 mb-5 overflow-x-auto">
         <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
             <thead>
                 <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
-                    <th class="py-3 pl-5 pr-4">MSME</th>
-                    <th class="py-3 pr-4">Business Type</th>
-                    <th class="py-3 pr-4">Category</th>
-                    <th class="py-3 pr-4">Projects</th>
-                    <th class="py-3 pr-4">Outstanding Balance</th>
+                    <th class="py-3 pl-5 pr-4">
+                        <a href="?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'name' %}-name{% else %}name{% endif %}"
+                            hx-get="{% url 'msme_list' %}?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'name' %}-name{% else %}name{% endif %}"
+                            hx-target="#msmes-table-container" hx-select="#msmes-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black transition-colors duration-150">
+                            MSME {% if sort == 'name' %}↑{% elif sort == '-name' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">
+                        <a href="?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'business_type' %}-business_type{% else %}business_type{% endif %}"
+                            hx-get="{% url 'msme_list' %}?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'business_type' %}-business_type{% else %}business_type{% endif %}"
+                            hx-target="#msmes-table-container" hx-select="#msmes-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black transition-colors duration-150">
+                            Business Type {% if sort == 'business_type' %}↑{% elif sort == '-business_type' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">
+                        <a href="?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'category' %}-category{% else %}category{% endif %}"
+                            hx-get="{% url 'msme_list' %}?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'category' %}-category{% else %}category{% endif %}"
+                            hx-target="#msmes-table-container" hx-select="#msmes-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black transition-colors duration-150">
+                            Category {% if sort == 'category' %}↑{% elif sort == '-category' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">
+                        <a href="?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'projects' %}-projects{% else %}projects{% endif %}"
+                            hx-get="{% url 'msme_list' %}?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'projects' %}-projects{% else %}projects{% endif %}"
+                            hx-target="#msmes-table-container" hx-select="#msmes-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black transition-colors duration-150">
+                            Projects {% if sort == 'projects' %}↑{% elif sort == '-projects' %}↓{% endif %}
+                        </a>
+                    </th>
+                    <th class="py-3 pr-4">
+                        <a href="?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'balance' %}-balance{% else %}balance{% endif %}"
+                            hx-get="{% url 'msme_list' %}?q={{ query }}&category={{ category_filter }}&sort={% if sort == 'balance' %}-balance{% else %}balance{% endif %}"
+                            hx-target="#msmes-table-container" hx-select="#msmes-table-container" hx-swap="outerHTML" hx-push-url="true"
+                            class="hover:text-black transition-colors duration-150">
+                            Outstanding Balance {% if sort == 'balance' %}↑{% elif sort == '-balance' %}↓{% endif %}
+                        </a>
+                    </th>
                     <th class="py-3 pr-4">Eligible for New iFund</th>
                     <th class="py-3 pr-4"></th>
                 </tr>
@@ -76,7 +114,7 @@
                         {{ row.active_projects }} active
                         <span class="text-[#8a8a8a]">/ {{ row.total_projects }} total</span>
                     </td>
-                    <td class="py-3 pr-4">₱{{ row.outstanding_balance|floatformat:0 }}</td>
+                    <td class="py-3 pr-4">₱{{ row.outstanding_balance|floatformat:2 }}</td>
                     <td class="py-3 pr-4">
                         {% if row.msme.is_eligible_for_new_ifund %}
                         <span class="inline-block rounded-full bg-[#E9FBF0] px-3 py-1 text-xs font-medium text-[#22A559]">Eligible</span>

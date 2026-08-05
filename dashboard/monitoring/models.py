@@ -147,6 +147,13 @@ class Project(models.Model):
         DEATH = 'death', 'Death of Cooperator'
         OTHER = 'other', 'Other'
 
+    # Number of consecutive missed (overdue + unpaid) installments before a
+    # project escalates from "past due" to full "delinquent" status. Below
+    # this threshold, a project with overdue installments is just past due
+    # — worth flagging, but not yet the six-month non-remittance track that
+    # is_refund_delinquent below is meant to surface.
+    DELINQUENCY_THRESHOLD_MONTHS = 3
+
     cooperator = models.ForeignKey(
         Cooperator, on_delete=models.PROTECT, related_name='projects', verbose_name="MSME"
     )
@@ -158,7 +165,14 @@ class Project(models.Model):
     # --- Funding ---
     total_ifund_amount = models.DecimalField(
         "Total iFund Support (₱)", max_digits=14, decimal_places=2,
-        help_text="Total amount of funding assistance approved (the principal to be refunded)."
+        blank=True, default=Decimal("0"),
+        help_text=(
+            "Total amount of funding assistance approved (the principal to be "
+            "refunded). Leave blank until the approved amount is confirmed — "
+            "defaults to ₱0 rather than being left null, since remaining_balance/"
+            "refund_progress_percent below do arithmetic on this field and a real "
+            "None would crash them."
+        )
     )
     fund_source = models.CharField(
         max_length=20,
@@ -209,6 +223,16 @@ class Project(models.Model):
         help_text="Jobs created as a direct result of this project (warm bodies).",
     )
 
+    # A single running/baseline figure, editable via ProjectImpactDataForm —
+    # distinct from ProjectQuarterlyImpact below, which logs the actual
+    # per-quarter increment that ImpactRecord.compute_project_estimate sums.
+    # This field is the simple "what's the number right now" snapshot;
+    # ProjectQuarterlyImpact is the accurate quarter-by-quarter history.
+    gross_sales = models.DecimalField(
+        "Gross Sales (₱)", max_digits=14, decimal_places=2, default=Decimal("0"),
+        help_text="MSME's current reported gross sales attributable to this project.",
+    )
+
     # A single project profile photo (not a gallery) — shown as a portrait
     # next to the project header on the detail page.
     photo = models.ImageField(upload_to='project_photos/%Y/%m/', blank=True, null=True)
@@ -248,17 +272,46 @@ class Project(models.Model):
         return timezone.now().date() > self.phase1_expected_end_date
 
     @property
-    def is_refund_delinquent(self):
+    def consecutive_missed_months(self):
         """
-        Flags a cooperator as delinquent if any scheduled installment is
-        overdue and still unpaid — this is your early-warning signal for
-        the six-month non-remittance rule (AO Part III, referenced re:
-        DOST-RO collection action).
+        Count of consecutive unpaid, overdue installments. Assumes payments
+        get recorded against the oldest unpaid installment first (the
+        normal case), so overdue + unpaid installments naturally form one
+        unbroken streak counting back from the most recent due date — this
+        doesn't independently detect a gap in the streak if that
+        assumption is ever violated (e.g. a payment posted out of order).
+        Used both to size is_refund_past_due / is_refund_delinquent below
+        and to display "X overdue installments" on the project detail page.
         """
-        return self.refund_installments.filter(
+        overdue = self.refund_installments.filter(
             due_date__lt=timezone.now().date(),
             status=RefundInstallment.Status.UNPAID,
-        ).exists()
+        )
+        return overdue.count()
+
+    @property
+    def is_refund_past_due(self):
+        """
+        Has at least one overdue, unpaid installment, but hasn't yet
+        reached DELINQUENCY_THRESHOLD_MONTHS consecutive missed months —
+        the "late, but not yet a collections matter" state. Mutually
+        exclusive with is_refund_delinquent below: a project is one or the
+        other, never both.
+        """
+        missed = self.consecutive_missed_months
+        return 0 < missed < self.DELINQUENCY_THRESHOLD_MONTHS
+
+    @property
+    def is_refund_delinquent(self):
+        """
+        Flags a cooperator as delinquent once it has missed
+        DELINQUENCY_THRESHOLD_MONTHS consecutive refund installments — the
+        early-warning signal for the six-month non-remittance rule (AO
+        Part III, referenced re: DOST-RO collection action). Anything short
+        of that threshold shows up as "past due" instead
+        (is_refund_past_due), not full delinquency.
+        """
+        return self.consecutive_missed_months >= self.DELINQUENCY_THRESHOLD_MONTHS
 
     @property
     def is_pending_delinquent(self):
@@ -277,23 +330,11 @@ class Project(models.Model):
 
     @property
     def is_delinquent(self):
-        """Either flavor of delinquency — convenience for badges/filters
-        that just want to know "is something wrong here", regardless of
-        which stage the project is in."""
-        return self.is_refund_delinquent or self.is_pending_delinquent
-
-    @property
-    def consecutive_missed_months(self):
-        """
-        Count of consecutive unpaid, overdue installments — used to flag
-        cooperators approaching the 6-month non-remittance threshold that
-        can trigger a demand letter / collection action.
-        """
-        overdue = self.refund_installments.filter(
-            due_date__lt=timezone.now().date(),
-            status=RefundInstallment.Status.UNPAID,
-        ).order_by('due_date')
-        return overdue.count()
+        """Any refund-related "something's wrong" signal — past due, fully
+        delinquent, or a stalled pending application — convenience for
+        badges/filters that just want to know "is something wrong here",
+        regardless of which stage or severity it's at."""
+        return self.is_refund_past_due or self.is_refund_delinquent or self.is_pending_delinquent
 
     @property
     def can_request_realignment(self):
@@ -331,7 +372,17 @@ class Project(models.Model):
         phase_1, phase_2, or completed) is gated this way — moving to
         terminated/withdrawn is an exit, not progress, so it isn't blocked
         by an incomplete checklist for the phase being left.
+
+        Completed has a SECOND, independent condition on top of its
+        requirements checklist: the refund must actually be fully paid
+        off (remaining_balance <= 0). A project can have its Terminal
+        Report on file while still owing money — paperwork being in order
+        doesn't mean the loan is repaid, and this is a loan-supervision
+        tool first, so the money has to actually be back before a project
+        can be closed out.
         """
+        if target_status == self.Status.COMPLETED and self.remaining_balance > 0:
+            return False
         if target_status not in (self.Status.PHASE_1, self.Status.PHASE_2, self.Status.COMPLETED):
             return True
         return not self.missing_requirements_for(target_status).exists()
@@ -471,6 +522,39 @@ class RefundInstallment(models.Model):
     @property
     def is_overdue(self):
         return self.status == self.Status.UNPAID and self.due_date < timezone.now().date()
+
+    @property
+    def days_overdue(self):
+        """Whole days past due — 0 if not overdue (paid, waived,
+        restructured, or not yet due). Pairs with months_overdue for a
+        human "X months, Y days overdue" display on the Funding page."""
+        if not self.is_overdue:
+            return 0
+        return (timezone.now().date() - self.due_date).days
+
+    @property
+    def months_overdue(self):
+        """Whole months past due (days_overdue // 30) — coarser than
+        days_overdue alone, easier to scan once something's been overdue
+        for more than a few weeks."""
+        return self.days_overdue // 30
+
+    @property
+    def days_overdue_remainder(self):
+        """The leftover days after months_overdue's whole months are
+        subtracted out — e.g. 47 days overdue is "1 month, 17 days," and
+        this is the 17. Exists purely so the template can show both
+        numbers without doing the subtraction itself."""
+        return self.days_overdue - (self.months_overdue * 30)
+
+    @property
+    def days_until_due(self):
+        """Days remaining until due_date — 0 if it's due today, already
+        overdue, or not unpaid (paid/waived/restructured)."""
+        if self.status != self.Status.UNPAID:
+            return 0
+        delta = (self.due_date - timezone.now().date()).days
+        return delta if delta > 0 else 0
 
 
 class RefundPayment(models.Model):
@@ -741,15 +825,34 @@ class ImpactRecord(models.Model):
         return start, end
 
     @classmethod
-    def compute_project_estimate(cls, year, quarter):
+    def current_year_quarter(cls):
+        """(year, quarter) for right now — e.g. (2026, 'q3') — used as the
+        default selection on the Impact KPI page and the project/MSME
+        detail pages' "Auto-computed" boxes, so they open already showing
+        the quarter that's actually in progress instead of forcing staff
+        to pick one first."""
+        today = timezone.now().date()
+        for quarter, (start_month, end_month) in cls.QUARTER_MONTH_RANGES.items():
+            if start_month <= today.month <= end_month:
+                return today.year, quarter
+        return today.year, 'q4'  # unreachable given the ranges above, but keeps this total
+
+    @classmethod
+    def compute_project_estimate(cls, year, quarter, projects_qs=None):
         """
         A starting-point baseline for a quarter's Impact KPI figures,
-        computed straight from Project/Cooperator data — so staff aren't
-        re-counting projects by hand every quarter before they can log an
-        entry. This is deliberately NOT the final number: it can't see
-        walk-in clients or any other non-project S&T assistance, which is
-        exactly why the quarterly entry form still needs a human to review
-        and top the numbers up before saving.
+        computed straight from Project/Cooperator/ProjectQuarterlyImpact
+        data — so staff aren't re-counting projects by hand every quarter
+        before they can log an entry. This is deliberately NOT the final
+        number: it can't see walk-in clients or any other non-project S&T
+        assistance, which is exactly why the quarterly entry form still
+        needs a human to review and top the numbers up before saving.
+
+        projects_qs restricts the computation to a specific set of
+        projects — pass a single-project queryset (e.g. from the project
+        detail page's "Auto-computed Impact KPI Contribution" box) to get
+        just that project's estimated contribution instead of the whole
+        program's. Defaults to every project when not given.
 
         Assumptions baked in here (adjust if your office counts
         differently):
@@ -757,20 +860,22 @@ class ImpactRecord(models.Model):
             project whose Phase I actually started (phase1_start_date)
             within the quarter — i.e. iFund was released and
             implementation began.
-          - "Jobs created" only counts once Phase I is actually finished
-            (phase1_actual_end_date within the quarter), not merely
-            started — a project with no actual end date yet contributes
-            nothing until that's filled in.
           - "Export firms assisted" = the same "started this quarter"
             projects, filtered to cooperators flagged is_export_firm.
-
-        Gross Sales has NO computed component — nothing in this schema
-        tracks an MSME's actual business revenue, so it's intentionally
-        left out here and stays 100% manually reported.
+          - "Jobs created" and "Gross sales" are summed from
+            ProjectQuarterlyImpact entries logged for this EXACT
+            (year, quarter) — the accurate per-quarter log, rather than
+            guessed from Project's flat jobs_created/gross_sales fields
+            (which are just a running snapshot with no notion of which
+            quarter they belong to). A project with nothing logged for
+            this quarter contributes 0 here, even if its snapshot fields
+            are non-zero — log an entry via ProjectQuarterlyImpactForm to
+            have it count.
         """
+        base_qs = projects_qs if projects_qs is not None else Project.objects.all()
         start, end = cls.quarter_date_range(year, quarter)
 
-        started_this_quarter = Project.objects.filter(
+        started_this_quarter = base_qs.filter(
             phase1_start_date__gte=start, phase1_start_date__lte=end,
         )
 
@@ -780,16 +885,45 @@ class ImpactRecord(models.Model):
             cooperator__is_export_firm=True
         ).values('cooperator').distinct().count()
 
-        completed_this_quarter = Project.objects.filter(
-            phase1_actual_end_date__gte=start, phase1_actual_end_date__lte=end,
+        quarterly_entries = ProjectQuarterlyImpact.objects.filter(
+            project__in=base_qs, year=year, quarter=quarter,
         )
-        jobs_created = completed_this_quarter.aggregate(
-            total=models.Sum('jobs_created')
-        )['total'] or 0
+        jobs_created = quarterly_entries.aggregate(total=models.Sum('jobs_created'))['total'] or 0
+        gross_sales = quarterly_entries.aggregate(total=models.Sum('gross_sales'))['total'] or Decimal("0")
 
         return {
             'entities_assisted': entities_assisted,
             'jobs_created': jobs_created,
             'technology_interventions': technology_interventions,
             'export_firms_assisted': export_firms_assisted,
+            'gross_sales': gross_sales,
         }
+
+
+# ---------------------------------------------------------------------------
+# Per-project, per-quarter Jobs Created / Gross Sales log — the accurate
+# counterpart to Project.jobs_created/gross_sales (which are just a single
+# running snapshot with no notion of which quarter a figure belongs to).
+# ImpactRecord.compute_project_estimate sums these for whichever (year,
+# quarter) is being estimated.
+# ---------------------------------------------------------------------------
+
+class ProjectQuarterlyImpact(models.Model):
+    """One project's Jobs Created / Gross Sales contribution, logged for
+    one specific quarter."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='quarterly_impacts')
+    year = models.PositiveIntegerField(default=_current_year)
+    quarter = models.CharField(max_length=2, choices=ImpactRecord.Quarter.choices)
+
+    jobs_created = models.PositiveIntegerField(default=0)
+    gross_sales = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"))
+    remarks = models.CharField(max_length=255, blank=True)
+    date_recorded = models.DateField(default=timezone.now)
+
+    class Meta:
+        unique_together = [('project', 'year', 'quarter')]
+        ordering = ['-year', '-quarter']
+
+    def __str__(self):
+        return f"{self.project} — {self.get_quarter_display()} {self.year}"

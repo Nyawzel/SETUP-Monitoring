@@ -3,6 +3,7 @@ from .models import (
     Cooperator, Project, BudgetLineItem, BudgetRealignment,
     RefundInstallment, RefundPayment, RefundRestructure,
     Equipment, MonitoringReport, ProjectRequirement, ImpactRecord,
+    ProjectQuarterlyImpact,
 )
 
 
@@ -37,6 +38,11 @@ class MonitoringReportInline(admin.TabularInline):
     extra = 1
 
 
+class ProjectQuarterlyImpactInline(admin.TabularInline):
+    model = ProjectQuarterlyImpact
+    extra = 1
+
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = [
@@ -52,6 +58,7 @@ class ProjectAdmin(admin.ModelAdmin):
     inlines = [
         BudgetLineItemInline, RefundInstallmentInline,
         EquipmentInline, ProjectRequirementInline, MonitoringReportInline,
+        ProjectQuarterlyImpactInline,
     ]
 
 
@@ -141,3 +148,10 @@ class ImpactRecordAdmin(admin.ModelAdmin):
         'technology_interventions', 'export_firms_assisted', 'gross_sales',
     ]
     list_filter = ['year', 'quarter']
+
+
+@admin.register(ProjectQuarterlyImpact)
+class ProjectQuarterlyImpactAdmin(admin.ModelAdmin):
+    list_display = ['project', 'quarter', 'year', 'jobs_created', 'gross_sales']
+    list_filter = ['year', 'quarter']
+    autocomplete_fields = ['project']

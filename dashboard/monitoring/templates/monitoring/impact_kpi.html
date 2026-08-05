@@ -23,14 +23,16 @@
             Quarterly Report
         </h1>
 
-        <form method="get" class="flex flex-1 flex-wrap items-center justify-end gap-2.5 px-5 min-w-0">
-            <select name="year" class="h-11 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black">
+        <form method="get"
+            hx-get="{% url 'reports' %}" hx-target="#impact-kpi-results" hx-select="#impact-kpi-results" hx-swap="outerHTML" hx-push-url="true"
+            class="flex flex-1 flex-wrap items-center justify-end gap-2.5 px-5 min-w-0">
+            <select name="year" class="h-11 w-28 shrink-0 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black">
                 <option value="">All Years</option>
                 {% for y in available_years %}
                 <option value="{{ y }}" {% if year_filter == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
                 {% endfor %}
             </select>
-            <select name="quarter" class="h-11 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black">
+            <select name="quarter" class="h-11 w-32 shrink-0 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black">
                 <option value="">All Quarters</option>
                 {% for value, label in quarter_choices %}
                 <option value="{{ value }}" {% if quarter_filter == value %}selected{% endif %}>{{ label }}</option>
@@ -38,7 +40,7 @@
             </select>
             <button
                 type="submit"
-                class="h-11 rounded-[10px] px-5 font-['Outfit',_sans-serif] text-sm text-white transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:brightness-110 active:scale-95"
+                class="h-11 shrink-0 rounded-[10px] px-5 font-['Outfit',_sans-serif] text-sm text-white transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:brightness-110 active:scale-95"
                 style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);"
             >
                 Filter
@@ -46,309 +48,511 @@
         </form>
     </div>
 
-    <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5 px-5">
-        <div class="rounded-[20px] bg-white p-4">
-            <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">S&amp;T Entities Assisted</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">{{ entities_assisted }}</span>
-            <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Includes walk-in clients</span>
-        </div>
-        <div class="rounded-[20px] bg-white p-4">
-            <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Jobs Created</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#22A559]">{{ jobs_created }}</span>
-        </div>
-        <div class="rounded-[20px] bg-white p-4">
-            <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Technology Interventions</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#09ACED]">{{ technology_interventions }}</span>
-        </div>
-        <div class="rounded-[20px] bg-white p-4">
-            <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Export Firms Assisted</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#7B8BFD]">{{ export_firms_assisted }}</span>
-        </div>
-        <div class="rounded-[20px] bg-white p-4">
-            <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Gross Sales</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ gross_sales|floatformat:0 }}</span>
-        </div>
-    </div>
+    <!-- Chart.js — loaded here, BEFORE the swap zone, and only once: on the
+         very first page load, this must come before #impact-kpi-results so
+         `Chart` is already defined by the time the render script inside
+         that div runs (scripts execute in document order — having this
+         AFTER the swap zone meant the render script always ran first and
+         always found `Chart` undefined, which is what was firing the
+         "Chart.js failed to load" fallback and blanking out every chart box
+         on every load, not just occasionally). Living outside the swap
+         zone also means later filter changes don't re-fetch it from the
+         CDN. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
-    <!-- Quarterly distribution charts -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-2.5 px-5">
-        <div class="rounded-[20px] bg-white p-5">
-            <span class="block font-['Inter',_sans-serif] text-lg font-medium text-black mb-3">
-                Quarterly Distribution — Entities, Jobs, Tech &amp; Export Firms
+    <!-- Everything below depends on the Year/Quarter filter above, so it's
+         all one htmx swap target: both KPI card rows (Actual + Computed),
+         the chart pair (logged quarters only — see the chart section's
+         own comment below for why Computed estimates don't appear here),
+         the entry form (whose AUTO-suggested values change with the
+         filter), the records table, and the Export panel (whose hidden
+         year/quarter inputs need to stay in sync with whatever's
+         currently filtered). The render script re-runs on every swap,
+         which is safe to repeat since hx-swap="outerHTML" replaces this
+         whole div, so each swap gets brand-new <canvas> elements (no
+         "canvas already in use" reuse error, no manual chart.destroy()
+         bookkeeping needed). -->
+    <div id="impact-kpi-results" class="flex flex-col gap-2.5">
+
+        <div class="flex flex-wrap items-center justify-between gap-2 px-5">
+            <span class="block font-['Inter',_sans-serif] text-sm font-semibold text-[#8a8a8a] uppercase tracking-wide">
+                Actual (Logged, Includes Walk-ins)
             </span>
-            <div class="h-72">
-                <canvas id="counts-chart"></canvas>
+            <span class="font-['Inter',_sans-serif] text-xs font-medium px-3 py-1 rounded-full
+                {% if expected_quarter_count == 0 or logged_quarter_count == expected_quarter_count %} bg-[#E9FBF0] text-[#22A559] {% else %} bg-[#FFF8E6] text-[#C98A00] {% endif %}">
+                {{ logged_quarter_count }} of {{ expected_quarter_count }} quarters logged
+            </span>
+        </div>
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5 px-5">
+            <div class="rounded-[20px] bg-white p-4">
+                <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">S&amp;T Entities Assisted</span>
+                <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">{{ entities_assisted }}</span>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Includes walk-in clients</span>
+                {% if not has_actual_for_comparison %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Not yet logged for this range</span>
+                {% elif kpi_deltas.entities_assisted > 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#22A559] mt-1">+{{ kpi_deltas.entities_assisted }} vs. computed</span>
+                {% elif kpi_deltas.entities_assisted < 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#E24C4C] mt-1">⚠ {{ kpi_deltas.entities_assisted }} vs. computed</span>
+                {% else %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Matches computed</span>
+                {% endif %}
+            </div>
+            <div class="rounded-[20px] bg-white p-4">
+                <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Jobs Created</span>
+                <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#22A559]">{{ jobs_created }}</span>
+                {% if not has_actual_for_comparison %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Not yet logged for this range</span>
+                {% elif kpi_deltas.jobs_created > 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#22A559] mt-1">+{{ kpi_deltas.jobs_created }} vs. computed</span>
+                {% elif kpi_deltas.jobs_created < 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#E24C4C] mt-1">⚠ {{ kpi_deltas.jobs_created }} vs. computed</span>
+                {% else %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Matches computed</span>
+                {% endif %}
+            </div>
+            <div class="rounded-[20px] bg-white p-4">
+                <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Technology Interventions</span>
+                <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#09ACED]">{{ technology_interventions }}</span>
+                {% if not has_actual_for_comparison %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Not yet logged for this range</span>
+                {% elif kpi_deltas.technology_interventions > 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#22A559] mt-1">+{{ kpi_deltas.technology_interventions }} vs. computed</span>
+                {% elif kpi_deltas.technology_interventions < 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#E24C4C] mt-1">⚠ {{ kpi_deltas.technology_interventions }} vs. computed</span>
+                {% else %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Matches computed</span>
+                {% endif %}
+            </div>
+            <div class="rounded-[20px] bg-white p-4">
+                <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Export Firms Assisted</span>
+                <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#7B8BFD]">{{ export_firms_assisted }}</span>
+                {% if not has_actual_for_comparison %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Not yet logged for this range</span>
+                {% elif kpi_deltas.export_firms_assisted > 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#22A559] mt-1">+{{ kpi_deltas.export_firms_assisted }} vs. computed</span>
+                {% elif kpi_deltas.export_firms_assisted < 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#E24C4C] mt-1">⚠ {{ kpi_deltas.export_firms_assisted }} vs. computed</span>
+                {% else %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Matches computed</span>
+                {% endif %}
+            </div>
+            <div class="rounded-[20px] bg-white p-4">
+                <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Gross Sales</span>
+                <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ gross_sales|floatformat:0 }}</span>
+                {% if not has_actual_for_comparison %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Not yet logged for this range</span>
+                {% elif kpi_deltas.gross_sales > 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#22A559] mt-1">+₱{{ kpi_deltas.gross_sales|floatformat:0 }} vs. computed</span>
+                {% elif kpi_deltas.gross_sales < 0 %}
+                <span class="block font-['Inter',_sans-serif] text-xs font-medium text-[#E24C4C] mt-1">⚠ ₱{{ kpi_deltas.gross_sales|floatformat:0 }} vs. computed</span>
+                {% else %}
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-1">Matches computed</span>
+                {% endif %}
             </div>
         </div>
-        <div class="rounded-[20px] bg-white p-5">
-            <span class="block font-['Inter',_sans-serif] text-lg font-medium text-black mb-3">
-                Quarterly Distribution — Gross Sales
-            </span>
-            <div class="h-72">
-                <canvas id="sales-chart"></canvas>
+
+        <!-- Computed-only totals — same five indicators, but summed straight
+             from Project/Cooperator data (compute_project_estimate) across
+             whatever quarters the chart below covers, instead of from logged
+             ImpactRecord rows. Exists so staff have a running total to check
+             against even before anything's been logged for a quarter — no more
+             re-adding up Gross Sales by hand. Never written to ImpactRecord, so
+             it can't leak into the "Actual" totals above or its chart on its
+             own; someone has to compare the two and log it deliberately.
+
+             Deliberately ONE compact strip, not 5 full-size cards like the
+             Actual row above — matching the size communicated "these are
+             equally important," when Computed is meant to read as a
+             reference/sanity-check, not a second official number. Size
+             doing that work (not just the dashed border) is what actually
+             prevents "which row is the real one?" confusion. -->
+        <div class="mx-5 rounded-[14px] bg-[#F8FAFB] border border-dashed border-[#dcdcdc] px-4 py-3">
+            <div class="flex flex-wrap items-baseline gap-x-2 mb-2">
+                <span class="font-['Inter',_sans-serif] text-xs font-semibold text-[#8a8a8a] uppercase tracking-wide">
+                    Computed from Website Data
+                </span>
+                <span class="font-['Inter',_sans-serif] text-[11px] text-[#8a8a8a]">
+                    (Projects/MSMEs only — walk-ins not included)
+                </span>
+            </div>
+            <div class="flex flex-wrap gap-x-6 gap-y-1.5">
+                <div class="flex items-baseline gap-1.5">
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Entities:</span>
+                    <span class="font-['Inter',_sans-serif] text-sm font-semibold text-black">{{ computed_totals.entities_assisted }}</span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Jobs:</span>
+                    <span class="font-['Inter',_sans-serif] text-sm font-semibold text-[#22A559]">{{ computed_totals.jobs_created }}</span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Tech. Interventions:</span>
+                    <span class="font-['Inter',_sans-serif] text-sm font-semibold text-[#09ACED]">{{ computed_totals.technology_interventions }}</span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Export Firms:</span>
+                    <span class="font-['Inter',_sans-serif] text-sm font-semibold text-[#7B8BFD]">{{ computed_totals.export_firms_assisted }}</span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Gross Sales:</span>
+                    <span class="font-['Inter',_sans-serif] text-sm font-semibold text-[#FFC93C]">₱{{ computed_totals.gross_sales|floatformat:0 }}</span>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Add / update an entry -->
-    <div class="rounded-[20px] bg-white p-5 mx-5">
-        <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-1">Log a Quarterly Entry</span>
-        <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mb-3">
-            Re-submitting the same year/quarter updates that entry instead of creating a duplicate.
+        <!-- Quarterly distribution charts — LOGGED data only, deliberately.
+             Computed estimates are a suggestion for the entry form below
+             (and their own running-total cards above), not something that
+             belongs on a historical trend line: overlaying an estimate on
+             confirmed numbers makes it hard to tell, at a glance, which
+             quarters are "this actually happened" vs. "this is a
+             projection based on project dates." A quarter with nothing
+             logged shows as a GAP in the line (not a dip to zero) — see
+             the `logged` flag on each chart_data point, turned into `null`
+             below; Chart.js skips null points instead of drawing through
+             them, so "not yet reported" reads differently from "reported
+             as zero." -->
+        <span class="block font-['Inter',_sans-serif] text-sm font-semibold text-[#8a8a8a] uppercase tracking-wide px-5 mt-2">
+            Quarterly Distribution — Logged Quarters Only
         </span>
-
-        {% if computed_estimate %}
-        <div class="rounded-[10px] bg-[#E6F7FF] px-4 py-3 mb-4 font-['Inter',_sans-serif] text-sm text-[#09ACED]">
-            <span class="font-medium">Suggested from Projects</span> for the filtered quarter —
-            Entities: {{ computed_estimate.entities_assisted }},
-            Jobs: {{ computed_estimate.jobs_created }},
-            Tech. Interventions: {{ computed_estimate.technology_interventions }},
-            Export Firms: {{ computed_estimate.export_firms_assisted }}.
-            These are pre-filled below — add any walk-in clients or other non-project S&amp;T assistance on
-            top before saving. Gross Sales has no project-derived figure and must be entered manually.
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-2.5 px-5">
+            <div class="rounded-[20px] bg-white p-5">
+                <span class="block font-['Inter',_sans-serif] text-lg font-medium text-black mb-3">
+                    Entities, Jobs, Tech &amp; Export Firms
+                </span>
+                <div class="h-72">
+                    <canvas id="counts-chart"></canvas>
+                </div>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-2">
+                    Gaps in a line = that quarter hasn't been logged yet, not zero activity.
+                </span>
+            </div>
+            <div class="rounded-[20px] bg-white p-5">
+                <span class="block font-['Inter',_sans-serif] text-lg font-medium text-black mb-3">
+                    Gross Sales
+                </span>
+                <div class="h-72">
+                    <canvas id="sales-chart"></canvas>
+                </div>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mt-2">
+                    Gaps = that quarter hasn't been logged yet, not ₱0 in sales.
+                </span>
+            </div>
         </div>
-        {% else %}
-        <div class="rounded-[10px] bg-[#F8FAFB] px-4 py-3 mb-4 font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
-            Pick a specific Year and Quarter in the filters above to pre-fill this form with a
-            project-derived suggestion (walk-ins and Gross Sales still need to be added manually).
+
+        <!-- Add / update an entry -->
+        <div class="rounded-[20px] bg-white p-5 mx-5">
+            <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-1">Log a Quarterly Entry</span>
+            <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mb-3">
+                Re-submitting the same year/quarter updates that entry instead of creating a duplicate.
+            </span>
+
+            {% if computed_estimate %}
+            <div class="rounded-[10px] bg-[#E6F7FF] px-4 py-3 mb-4 font-['Inter',_sans-serif] text-sm text-[#09ACED]">
+                <span class="font-medium">Suggested from Projects</span> for the filtered quarter —
+                Entities: {{ computed_estimate.entities_assisted }},
+                Jobs: {{ computed_estimate.jobs_created }},
+                Tech. Interventions: {{ computed_estimate.technology_interventions }},
+                Export Firms: {{ computed_estimate.export_firms_assisted }},
+                Gross Sales: ₱{{ computed_estimate.gross_sales|floatformat:0 }}.
+                These are pre-filled below — add any walk-in clients or other non-project S&amp;T assistance on
+                top before saving. Entities/Interventions/Export Firms count every project ACTIVE this quarter
+                (Phase I or Phase II), not just newly-started ones. Jobs/Gross Sales are pulled from whatever
+                each project logged for THIS quarter specifically on its own detail page — a project that hasn't
+                logged anything for this quarter contributes 0 here even if it's otherwise active.
+            </div>
+            {% else %}
+            <div class="rounded-[10px] bg-[#F8FAFB] px-4 py-3 mb-4 font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
+                Pick a specific Year and Quarter in the filters above to pre-fill this form with a
+                project-derived suggestion (walk-ins still need to be added manually).
+            </div>
+            {% endif %}
+            <form method="post" id="impact-kpi-form" class="flex flex-wrap items-end gap-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_record">
+
+                <div class="flex flex-col gap-1 w-24">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Year</label>
+                    {{ add_form.year }}
+                </div>
+                <div class="flex flex-col gap-1 w-44">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Quarter</label>
+                    {{ add_form.quarter }}
+                </div>
+                <div class="flex flex-col gap-1 w-44">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Entities Assisted</label>
+                    {{ add_form.entities_assisted }}
+                </div>
+                <div class="flex flex-col gap-1 w-36">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Jobs Created</label>
+                    {{ add_form.jobs_created }}
+                </div>
+                <div class="flex flex-col gap-1 w-44">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Tech. Interventions</label>
+                    {{ add_form.technology_interventions }}
+                </div>
+                <div class="flex flex-col gap-1 w-40">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Export Firms Assisted</label>
+                    {{ add_form.export_firms_assisted }}
+                </div>
+                <div class="flex flex-col gap-1 w-40">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Gross Sales (₱)</label>
+                    {{ add_form.gross_sales }}
+                </div>
+                <div class="flex flex-col gap-1 min-w-[200px] flex-1">
+                    <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Remarks</label>
+                    {{ add_form.remarks }}
+                </div>
+
+                <button type="submit" class="h-11 px-5 rounded-[10px] bg-[#09ACED] text-white text-sm font-medium transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:bg-[#08a0da] active:scale-95">
+                    Save Entry
+                </button>
+            </form>
         </div>
-        {% endif %}
-        <form method="post" id="impact-kpi-form" class="flex flex-wrap items-end gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="add_record">
 
-            <div class="flex flex-col gap-1 w-24">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Year</label>
-                {{ add_form.year }}
-            </div>
-            <div class="flex flex-col gap-1 w-44">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Quarter</label>
-                {{ add_form.quarter }}
-            </div>
-            <div class="flex flex-col gap-1 w-44">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Entities Assisted</label>
-                {{ add_form.entities_assisted }}
-            </div>
-            <div class="flex flex-col gap-1 w-36">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Jobs Created</label>
-                {{ add_form.jobs_created }}
-            </div>
-            <div class="flex flex-col gap-1 w-44">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Tech. Interventions</label>
-                {{ add_form.technology_interventions }}
-            </div>
-            <div class="flex flex-col gap-1 w-40">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Export Firms Assisted</label>
-                {{ add_form.export_firms_assisted }}
-            </div>
-            <div class="flex flex-col gap-1 w-40">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Gross Sales (₱)</label>
-                {{ add_form.gross_sales }}
-            </div>
-            <div class="flex flex-col gap-1 min-w-[200px] flex-1">
-                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Remarks</label>
-                {{ add_form.remarks }}
-            </div>
-
-            <button type="submit" class="h-11 px-5 rounded-[10px] bg-[#09ACED] text-white text-sm font-medium transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:bg-[#08a0da] active:scale-95">
-                Save Entry
-            </button>
-        </form>
-    </div>
-
-    <!-- Records table -->
-    <div class="rounded-[20px] bg-white mx-5 mb-5 overflow-x-auto">
-        <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
-            <thead>
-                <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
-                    <th class="py-3 pl-5 pr-4">Quarter</th>
-                    <th class="py-3 pr-4">Entities Assisted</th>
-                    <th class="py-3 pr-4">Jobs Created</th>
-                    <th class="py-3 pr-4">Tech. Interventions</th>
-                    <th class="py-3 pr-4">Export Firms Assisted</th>
-                    <th class="py-3 pr-4">Gross Sales</th>
-                    <th class="py-3 pr-4">Remarks</th>
-                    <th class="py-3 pr-4"></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in records %}
-                <tr class="border-b border-[#f2f2f2] hover:bg-[#f8fafb]">
-                    <td class="py-3 pl-5 pr-4 font-medium text-black">{{ record.get_quarter_display }} {{ record.year }}</td>
-                    <td class="py-3 pr-4">{{ record.entities_assisted }}</td>
-                    <td class="py-3 pr-4">{{ record.jobs_created }}</td>
-                    <td class="py-3 pr-4">{{ record.technology_interventions }}</td>
-                    <td class="py-3 pr-4">{{ record.export_firms_assisted }}</td>
-                    <td class="py-3 pr-4">₱{{ record.gross_sales|floatformat:0 }}</td>
-                    <td class="py-3 pr-4 text-[#8a8a8a]">{{ record.remarks|default:"—" }}</td>
-                    <td class="py-3 pr-5 text-right whitespace-nowrap">
-                        <button type="button" class="text-[#09ACED] text-xs font-medium hover:underline transition-colors duration-150 mr-3"
-                            onclick="dostEditImpactRecord({{ record.year }}, '{{ record.quarter }}', {{ record.entities_assisted }}, {{ record.jobs_created }}, {{ record.technology_interventions }}, {{ record.export_firms_assisted }}, '{{ record.gross_sales }}', '{{ record.remarks|escapejs }}')">
-                            Edit
-                        </button>
-                        <form method="post" class="inline" onsubmit="return confirm('Remove this entry?');">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="delete_record">
-                            <input type="hidden" name="record_id" value="{{ record.pk }}">
-                            <button type="submit" class="text-[#E24C4C] text-xs font-medium hover:underline transition-colors duration-150">Remove</button>
-                        </form>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="8" class="py-6 pl-5 text-[#8a8a8a]">No Impact KPI entries match your filters yet.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-    <!-- Export Report — one report-type dropdown, an Export button, and a
-         project dropdown that only matters (and only enables) when
-         "Project Details Report" is picked. Submits a plain GET to
-         export_report_pdf so the browser just downloads the PDF — no
-         page reload, no JS beyond toggling the project field. The
-         Quarterly Impact option carries along whatever Year/Quarter
-         filter is currently applied above (hidden inputs), so the export
-         matches what's on screen rather than always exporting everything.
-         Placed at the bottom of the page, after everything else. -->
-    <div class="rounded-[20px] bg-white p-4 mx-5 mb-5">
-        <span class="block font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a] mb-3">Export Report (PDF)</span>
-        <form method="get" action="{% url 'export_report_pdf' %}" id="export-report-form" class="flex flex-wrap items-center gap-2.5">
-            <input type="hidden" name="year" value="{{ year_filter }}">
-            <input type="hidden" name="quarter" value="{{ quarter_filter }}">
-
-            <select name="report_type" id="export-report-type"
-                class="h-11 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black">
-                <option value="quarterly">Quarterly Impact Report</option>
-                <option value="project">Project Details Report</option>
-                <option value="dashboard">Dashboard KPI Snapshot</option>
-                <option value="funding">Funding Details Report</option>
-            </select>
-
-            <div id="export-project-wrap" class="hidden">
-                <select name="project_id"
-                    class="h-11 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black min-w-[220px]">
-                    <option value="">Choose a project…</option>
-                    {% for project in all_projects %}
-                    <option value="{{ project.pk }}">{{ project.cooperator.name }} — {{ project.title }}</option>
+        <!-- Records table -->
+        <div class="rounded-[20px] bg-white mx-5 mb-5 overflow-x-auto">
+            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                <thead>
+                    <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                        <th class="py-3 pl-5 pr-4">Quarter</th>
+                        <th class="py-3 pr-4">Entities Assisted</th>
+                        <th class="py-3 pr-4">Jobs Created</th>
+                        <th class="py-3 pr-4">Tech. Interventions</th>
+                        <th class="py-3 pr-4">Export Firms Assisted</th>
+                        <th class="py-3 pr-4">Gross Sales</th>
+                        <th class="py-3 pr-4">Remarks</th>
+                        <th class="py-3 pr-4"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr class="border-b border-[#f2f2f2] hover:bg-[#f8fafb] {% if record.year == current_year and record.quarter == current_quarter %}bg-[#E6F7FF]{% endif %}">
+                        <td class="py-3 pl-5 pr-4 font-medium text-black">
+                            {{ record.get_quarter_display }} {{ record.year }}
+                            {% if record.year == current_year and record.quarter == current_quarter %}
+                            <span class="ml-2 inline-block rounded-full bg-[#09ACED] px-2 py-0.5 text-[10px] font-semibold text-white align-middle">CURRENT</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 pr-4">{{ record.entities_assisted }}</td>
+                        <td class="py-3 pr-4">{{ record.jobs_created }}</td>
+                        <td class="py-3 pr-4">{{ record.technology_interventions }}</td>
+                        <td class="py-3 pr-4">{{ record.export_firms_assisted }}</td>
+                        <td class="py-3 pr-4">₱{{ record.gross_sales|floatformat:0 }}</td>
+                        <td class="py-3 pr-4 text-[#8a8a8a]">{{ record.remarks|default:"—" }}</td>
+                        <td class="py-3 pr-5 text-right whitespace-nowrap">
+                            <button type="button" class="text-[#09ACED] text-xs font-medium hover:underline transition-colors duration-150 mr-3"
+                                onclick="dostEditImpactRecord({{ record.year }}, '{{ record.quarter }}', {{ record.entities_assisted }}, {{ record.jobs_created }}, {{ record.technology_interventions }}, {{ record.export_firms_assisted }}, '{{ record.gross_sales }}', '{{ record.remarks|escapejs }}')">
+                                Edit
+                            </button>
+                            <form method="post" class="inline" onsubmit="return confirm('Remove this entry?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_record">
+                                <input type="hidden" name="record_id" value="{{ record.pk }}">
+                                <button type="submit" class="text-[#E24C4C] text-xs font-medium hover:underline transition-colors duration-150">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="py-6 pl-5 text-[#8a8a8a]">No Impact KPI entries match your filters yet.</td>
+                    </tr>
                     {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Export Report — one report-type dropdown, an Export button, and a
+             project dropdown that only matters (and only enables) when
+             "Project Details Report" is picked. Submits a plain GET to
+             export_report_pdf so the browser just downloads the PDF — no
+             page reload, no JS beyond toggling the project field. The
+             Quarterly Impact option carries along whatever Year/Quarter
+             filter is currently applied above (hidden inputs), so the export
+             matches what's on screen rather than always exporting everything.
+             Placed at the bottom of the results, after everything else. -->
+        <div class="rounded-[20px] bg-white p-4 mx-5 mb-5">
+            <span class="block font-['Inter',_sans-serif] text-sm font-medium text-[#8a8a8a] mb-3">Export Report (PDF)</span>
+            <form method="get" action="{% url 'export_report_pdf' %}" id="export-report-form" class="flex flex-wrap items-center gap-2.5">
+                <input type="hidden" name="year" value="{{ year_filter }}">
+                <input type="hidden" name="quarter" value="{{ quarter_filter }}">
+
+                <select name="report_type" id="export-report-type"
+                    class="h-11 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black">
+                    <option value="quarterly">Quarterly Impact Report</option>
+                    <option value="project">Project Details Report</option>
+                    <option value="dashboard">Dashboard KPI Snapshot</option>
+                    <option value="funding">Funding Details Report</option>
                 </select>
-            </div>
 
-            <button type="submit"
-                class="h-11 rounded-[10px] px-5 font-['Outfit',_sans-serif] text-sm text-white transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:brightness-110 active:scale-95"
-                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
-                Export
-            </button>
-        </form>
-    </div>
+                <div id="export-project-wrap" class="hidden">
+                    <select name="project_id"
+                        class="h-11 rounded-[10px] bg-white border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black min-w-[220px]">
+                        <option value="">Choose a project…</option>
+                        {% for project in all_projects %}
+                        <option value="{{ project.pk }}">{{ project.cooperator.name }} — {{ project.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-    <script>
+                <button type="submit"
+                    class="h-11 rounded-[10px] px-5 font-['Outfit',_sans-serif] text-sm text-white transition-all duration-200 hover:scale-[1.04] hover:shadow-lg hover:brightness-110 active:scale-95"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                    Export
+                </button>
+            </form>
+        </div>
+
+        <script>
+            (function () {
+                var typeSelect = document.getElementById('export-report-type');
+                var projectWrap = document.getElementById('export-project-wrap');
+                var projectSelect = projectWrap.querySelector('select');
+
+                function sync() {
+                    var isProject = typeSelect.value === 'project';
+                    projectWrap.classList.toggle('hidden', !isProject);
+                    projectSelect.disabled = !isProject;
+                    projectSelect.required = isProject;
+                }
+
+                typeSelect.addEventListener('change', sync);
+                sync();
+            })();
+        </script>
+
+        {{ chart_data|json_script:"impact-kpi-chart-data" }}
+
+        <script>
         (function () {
-            var typeSelect = document.getElementById('export-report-type');
-            var projectWrap = document.getElementById('export-project-wrap');
-            var projectSelect = projectWrap.querySelector('select');
-
-            function sync() {
-                var isProject = typeSelect.value === 'project';
-                projectWrap.classList.toggle('hidden', !isProject);
-                projectSelect.disabled = !isProject;
-                projectSelect.required = isProject;
+            // Belt-and-suspenders: if Chart.js failed to load at all (CDN
+            // blocked, offline, etc.), show a visible message in every chart
+            // box instead of leaving them silently blank — so this is
+            // diagnosable next time instead of looking like "nothing
+            // happened."
+            if (typeof Chart === 'undefined') {
+                ['counts-chart', 'sales-chart'].forEach(function (id) {
+                    var canvas = document.getElementById(id);
+                    if (canvas && canvas.parentElement) {
+                        canvas.parentElement.innerHTML =
+                            '<p class="text-xs text-[#E24C4C] font-[\'Inter\',_sans-serif]">' +
+                            'Chart.js failed to load from the CDN — charts can\'t render. ' +
+                            'Check network/firewall access to cdn.jsdelivr.net.</p>';
+                    }
+                });
+                return;
             }
 
-            typeSelect.addEventListener('change', sync);
-            sync();
+            // Same color per metric as its KPI card above (kept in sync on
+            // purpose — a metric should mean the same color everywhere on
+            // this page).
+            var METRICS = [
+                { key: 'entities_assisted', label: 'Entities Assisted', color: '#111827' },
+                { key: 'jobs_created', label: 'Jobs Created', color: '#22A559' },
+                { key: 'technology_interventions', label: 'Tech. Interventions', color: '#09ACED' },
+                { key: 'export_firms_assisted', label: 'Export Firms Assisted', color: '#7B8BFD' },
+            ];
+            var SALES_COLOR = '#FFC93C';
+
+            // actualData comes straight from chart_data in the view — each
+            // point carries `logged` (was there an ImpactRecord for this
+            // quarter?) alongside the metric values. toGapValue turns the
+            // value into `null` when the quarter wasn't logged, so Chart.js
+            // leaves a visible gap in the line there instead of drawing it
+            // as zero — "not yet reported" and "reported as zero" need to
+            // look different on a chart whose whole job is trustworthiness.
+            function toGapValue(point, key) {
+                return point.logged ? point[key] : null;
+            }
+
+            function renderCountsChart(canvasId, actualData) {
+                var canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+                var labels = actualData.map(function (d) { return d.label; });
+                var datasets = METRICS.map(function (m) {
+                    return {
+                        label: m.label,
+                        data: actualData.map(function (d) { return toGapValue(d, m.key); }),
+                        borderColor: m.color, backgroundColor: m.color,
+                        tension: 0.3, pointRadius: 3, pointHoverRadius: 5,
+                        spanGaps: false,
+                    };
+                });
+                new Chart(canvas, {
+                    type: 'line',
+                    data: { labels: labels, datasets: datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter' }, boxWidth: 16 } } },
+                        scales: { y: { beginAtZero: true } },
+                    },
+                });
+            }
+
+            function renderSalesChart(canvasId, actualData) {
+                var canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+                var labels = actualData.map(function (d) { return d.label; });
+                new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Gross Sales',
+                                data: actualData.map(function (d) { return toGapValue(d, 'gross_sales'); }),
+                                borderColor: SALES_COLOR,
+                                backgroundColor: 'rgba(255, 201, 60, 0.15)',
+                                tension: 0.3, pointRadius: 3, pointHoverRadius: 5, fill: true,
+                                spanGaps: false,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter' }, boxWidth: 16 } } },
+                        scales: { y: { beginAtZero: true } },
+                    },
+                });
+            }
+
+            // Defer actual chart creation until the browser has completed a
+            // layout/paint pass for the newly-swapped DOM — measuring the
+            // canvas's container immediately (synchronously, in the same
+            // task that inserted it) can catch a stale pre-swap layout box,
+            // which is what was causing charts to render squeezed into a
+            // fraction of their container after filtering. One
+            // requestAnimationFrame sometimes still fires before the browser
+            // has fully flushed layout for freshly-inserted nodes, so this
+            // waits two frames to be sure. Runs fresh on every htmx swap
+            // (this whole script lives inside #impact-kpi-results), so it
+            // always targets brand-new <canvas> elements with the
+            // newly-filtered data — no "canvas already in use" errors, no
+            // manual chart.destroy() calls needed.
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    var actualRaw = document.getElementById('impact-kpi-chart-data');
+                    if (!actualRaw) return;
+                    var actualData = JSON.parse(actualRaw.textContent);
+                    renderCountsChart('counts-chart', actualData);
+                    renderSalesChart('sales-chart', actualData);
+                });
+            });
         })();
-    </script>
+        </script>
+
+    </div>
+    <!-- /#impact-kpi-results -->
 
 </div>
 
-{{ chart_data|json_script:"impact-kpi-chart-data" }}
-
-<!-- Same CDN host as dashboard.html's Chart.js include (jsdelivr, not
-     cdnjs) — this page was pointed at a different host than the rest of
-     the app, which is the most likely reason the charts never drew even
-     though the table below has real data: if a network/firewall allows
-     one CDN host but not the other, `Chart` never gets defined here and
-     new Chart(...) silently fails. -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-(function () {
-    var raw = document.getElementById('impact-kpi-chart-data');
-    if (!raw) return;
-    var data = JSON.parse(raw.textContent);
-    var labels = data.map(function (d) { return d.label; });
-
-    // Belt-and-suspenders: if Chart.js failed to load at all (CDN blocked,
-    // offline, etc.), show a visible message in both chart boxes instead
-    // of leaving them silently blank — so this is diagnosable next time
-    // instead of looking like "nothing happened."
-    if (typeof Chart === 'undefined') {
-        ['counts-chart', 'sales-chart'].forEach(function (id) {
-            var canvas = document.getElementById(id);
-            if (canvas && canvas.parentElement) {
-                canvas.parentElement.innerHTML =
-                    '<p class="text-xs text-[#E24C4C] font-[\'Inter\',_sans-serif]">' +
-                    'Chart.js failed to load from the CDN — charts can\'t render. ' +
-                    'Check network/firewall access to cdn.jsdelivr.net.</p>';
-            }
-        });
-        return;
-    }
-
-    var countsCanvas = document.getElementById('counts-chart');
-    if (countsCanvas) {
-        // Line rather than grouped bar — with up to CHART_QUARTER_LIMIT
-        // quarters x 4 metrics, grouped bars get crowded fast and make the
-        // quarter-over-quarter trend hard to follow. A line per metric
-        // keeps that trend readable at a glance.
-        new Chart(countsCanvas, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    { label: 'Entities Assisted', data: data.map(function (d) { return d.entities_assisted; }), borderColor: '#09ACED', backgroundColor: '#09ACED', tension: 0.3, pointRadius: 3, pointHoverRadius: 5 },
-                    { label: 'Jobs Created', data: data.map(function (d) { return d.jobs_created; }), borderColor: '#22A559', backgroundColor: '#22A559', tension: 0.3, pointRadius: 3, pointHoverRadius: 5 },
-                    { label: 'Tech. Interventions', data: data.map(function (d) { return d.technology_interventions; }), borderColor: '#7B8BFD', backgroundColor: '#7B8BFD', tension: 0.3, pointRadius: 3, pointHoverRadius: 5 },
-                    { label: 'Export Firms Assisted', data: data.map(function (d) { return d.export_firms_assisted; }), borderColor: '#FFC93C', backgroundColor: '#FFC93C', tension: 0.3, pointRadius: 3, pointHoverRadius: 5 },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter' } } } },
-                scales: { y: { beginAtZero: true } },
-            },
-        });
-    }
-
-    var salesCanvas = document.getElementById('sales-chart');
-    if (salesCanvas) {
-        new Chart(salesCanvas, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Gross Sales (₱)',
-                        data: data.map(function (d) { return d.gross_sales; }),
-                        borderColor: '#35B9FE',
-                        backgroundColor: 'rgba(53, 185, 254, 0.15)',
-                        tension: 0.3,
-                        pointRadius: 3,
-                        pointHoverRadius: 5,
-                        fill: true,
-                    },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } },
-            },
-        });
-    }
-})();
-
+// Defined once, outside the swap zone — safe to keep global since it looks
+// up '#impact-kpi-form' fresh on every call rather than caching a
+// reference, so it keeps working against whichever copy of that form is
+// currently in the DOM after a swap.
 function dostEditImpactRecord(year, quarter, entities, jobs, tech, exportFirms, sales, remarks) {
     var form = document.getElementById('impact-kpi-form');
     form.querySelector('[name="year"]').value = year;

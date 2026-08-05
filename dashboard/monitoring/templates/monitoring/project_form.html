@@ -4,6 +4,15 @@
 {% block title %}Add Project{% endblock %}
 
 {% block content %}
+<!-- Tom Select: turns the plain cooperator <select> into a searchable
+     dropdown, without touching how the form actually submits — it's still
+     the same underlying <select>, just visually enhanced. No jQuery or
+     other dependency, matching the vanilla-JS approach used elsewhere in
+     this app (site-dropzone.js etc.). base.html has no extra-head block
+     to hook into, so these load here instead — a link/script tag works
+     fine outside the page head, just not quite as early. -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee] p-5">
 
     {% if messages %}
@@ -67,5 +76,54 @@
         font-size: 14px;
     }
     form textarea { height: auto; padding: 10px 12px; }
+
+    /* Tom Select replaces the plain <select> with its own markup, so the
+       generic "form select" rule above no longer reaches it — these
+       target Tom Select's own classes instead, to match the same look. */
+    .ts-wrapper.single .ts-control {
+        min-height: 44px;
+        border-radius: 10px;
+        border: 1px solid #dcdcdc;
+        padding: 0 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+    }
+    .ts-wrapper.focus .ts-control {
+        border-color: #09ACED;
+        box-shadow: 0 0 0 1px #09ACED;
+    }
+    .ts-dropdown {
+        border-radius: 10px;
+        border: 1px solid #dcdcdc;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        overflow: hidden;
+    }
+    .ts-dropdown .active {
+        background-color: #E6F7FF;
+        color: #09ACED;
+    }
 </style>
+
+<script>
+    // Only the cooperator field gets the searchable-dropdown treatment —
+    // the others (status, fund_source) have few enough options that a
+    // plain <select> is still the simpler, more familiar choice.
+    document.addEventListener('DOMContentLoaded', function () {
+        var cooperatorSelect = document.getElementById('id_cooperator');
+        if (cooperatorSelect && window.TomSelect) {
+            new TomSelect(cooperatorSelect, {
+                create: false,
+                placeholder: 'Search MSMEs…',
+                // Cooperator.objects.order_by('name') in ProjectForm already
+                // sorts the underlying <option> list alphabetically — this
+                // just makes sure Tom Select doesn't re-sort it back to
+                // something else (e.g. by search relevance) on its own.
+                sortField: { field: '$order', direction: 'asc' },
+            });
+        }
+    });
+</script>
 {% endblock %}

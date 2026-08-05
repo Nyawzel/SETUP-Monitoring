@@ -117,6 +117,21 @@
                 </div>
             </a>
 
+            <!-- Past Due (orange accent — worth watching, not yet delinquent) -->
+            <a href="{% url 'project_list' %}?past_due=1" class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5 border-2 border-[#F5A623] transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]">
+                <div class="flex h-[47px] items-center gap-[25px] p-2.5">
+                    <span class="flex-1 font-['Inter',_sans-serif] text-lg sm:text-xl font-medium text-[#F5A623]">
+                        Past Due
+                    </span>
+                    <img src="{% static 'monitoring/icons/forward4.svg' %}" class="w-[30px] h-[30px]" alt="">
+                </div>
+                <div class="flex h-[74px] items-center p-2.5">
+                    <span class="font-['Inter',_sans-serif] text-4xl sm:text-5xl font-semibold text-[#F5A623]">
+                        {{ past_due_count }}
+                    </span>
+                </div>
+            </a>
+
             <!-- Delinquent (red accent — needs attention) -->
             <a href="{% url 'project_list' %}?delinquent=1" class="flex flex-col gap-2.5 rounded-[20px] bg-white p-2.5 border-2 border-[#FF6B6B] transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]">
                 <div class="flex h-[47px] items-center gap-[25px] p-2.5">
@@ -166,7 +181,7 @@
                 </div>
                 <div class="flex h-[60px] items-center p-2.5">
                     <span class="font-['Inter',_sans-serif] text-3xl sm:text-4xl font-semibold text-black">
-                        ₱{{ total_disbursed|floatformat:0 }}
+                        ₱{{ total_disbursed|floatformat:2 }}
                     </span>
                 </div>
             </div>
@@ -180,7 +195,7 @@
                 </div>
                 <div class="flex h-[60px] items-center p-2.5">
                     <span class="font-['Inter',_sans-serif] text-3xl sm:text-4xl font-semibold text-[#35B9FE]">
-                        ₱{{ total_refunded|floatformat:0 }}
+                        ₱{{ total_refunded|floatformat:2 }}
                     </span>
                 </div>
             </div>
@@ -194,7 +209,7 @@
                 </div>
                 <div class="flex h-[60px] items-center p-2.5">
                     <span class="font-['Inter',_sans-serif] text-3xl sm:text-4xl font-semibold text-[#FFC93C]">
-                        ₱{{ outstanding_balance|floatformat:0 }}
+                        ₱{{ outstanding_balance|floatformat:2 }}
                     </span>
                 </div>
             </div>
@@ -248,14 +263,42 @@
             <span class="font-['Inter',_sans-serif] text-xl font-medium text-black mb-2.5 block">
                 Watchlist — MSMEs Behind on Refunds
             </span>
-            <div class="overflow-x-auto">
+            <div id="watchlist-table-container" class="overflow-x-auto">
                 <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
                     <thead>
                         <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
-                            <th class="py-2 pr-4">MSME</th>
-                            <th class="py-2 pr-4">Project</th>
-                            <th class="py-2 pr-4">Months Overdue</th>
-                            <th class="py-2 pr-4">Outstanding Balance</th>
+                            <th class="py-2 pr-4">
+                                <a href="?watchlist_sort={% if watchlist_sort == 'msme' %}-msme{% else %}msme{% endif %}"
+                                    hx-get="{% url 'dashboard' %}?watchlist_sort={% if watchlist_sort == 'msme' %}-msme{% else %}msme{% endif %}"
+                                    hx-target="#watchlist-table-container" hx-select="#watchlist-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                    class="hover:text-black transition-colors duration-150">
+                                    MSME {% if watchlist_sort == 'msme' %}↑{% elif watchlist_sort == '-msme' %}↓{% endif %}
+                                </a>
+                            </th>
+                            <th class="py-2 pr-4">
+                                <a href="?watchlist_sort={% if watchlist_sort == 'project' %}-project{% else %}project{% endif %}"
+                                    hx-get="{% url 'dashboard' %}?watchlist_sort={% if watchlist_sort == 'project' %}-project{% else %}project{% endif %}"
+                                    hx-target="#watchlist-table-container" hx-select="#watchlist-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                    class="hover:text-black transition-colors duration-150">
+                                    Project {% if watchlist_sort == 'project' %}↑{% elif watchlist_sort == '-project' %}↓{% endif %}
+                                </a>
+                            </th>
+                            <th class="py-2 pr-4">
+                                <a href="?watchlist_sort={% if watchlist_sort == 'overdue' %}-overdue{% else %}overdue{% endif %}"
+                                    hx-get="{% url 'dashboard' %}?watchlist_sort={% if watchlist_sort == 'overdue' %}-overdue{% else %}overdue{% endif %}"
+                                    hx-target="#watchlist-table-container" hx-select="#watchlist-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                    class="hover:text-black transition-colors duration-150">
+                                    Months Overdue {% if watchlist_sort == 'overdue' %}↑{% elif watchlist_sort == '-overdue' %}↓{% endif %}
+                                </a>
+                            </th>
+                            <th class="py-2 pr-4">
+                                <a href="?watchlist_sort={% if watchlist_sort == 'balance' %}-balance{% else %}balance{% endif %}"
+                                    hx-get="{% url 'dashboard' %}?watchlist_sort={% if watchlist_sort == 'balance' %}-balance{% else %}balance{% endif %}"
+                                    hx-target="#watchlist-table-container" hx-select="#watchlist-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                    class="hover:text-black transition-colors duration-150">
+                                    Outstanding Balance {% if watchlist_sort == 'balance' %}↑{% elif watchlist_sort == '-balance' %}↓{% endif %}
+                                </a>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -263,12 +306,15 @@
                         <tr class="border-b border-[#f2f2f2]">
                             <td class="py-2 pr-4">{{ project.cooperator.name }}</td>
                             <td class="py-2 pr-4">{{ project.title }}</td>
-                            <td class="py-2 pr-4 text-[#FF6B6B] font-medium">{{ project.consecutive_missed_months }}</td>
-                            <td class="py-2 pr-4">₱{{ project.remaining_balance|floatformat:0 }}</td>
+                            <td class="py-2 pr-4 font-medium {% if project.is_refund_delinquent %}text-[#FF6B6B]{% else %}text-[#F5A623]{% endif %}">
+                                {{ project.consecutive_missed_months }}
+                                <span class="font-normal text-xs">({% if project.is_refund_delinquent %}Delinquent{% else %}Past Due{% endif %})</span>
+                            </td>
+                            <td class="py-2 pr-4">₱{{ project.remaining_balance|floatformat:2 }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="4" class="py-4 text-[#8a8a8a]">No delinquent MSMEs right now.</td>
+                            <td colspan="4" class="py-4 text-[#8a8a8a]">No MSMEs behind on refunds right now.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -290,11 +336,11 @@
         new Chart(document.getElementById('statusChart'), {
             type: 'doughnut',
             data: {
-                // labels: ["Phase I", "Phase II", "Completed", "Pending", "Delinquent", "Terminated/Withdrawn"]
+                // labels: ["Phase I", "Phase II", "Completed", "Pending", "Past Due", "Delinquent", "Terminated/Withdrawn"]
                 labels: statusData.labels,
                 datasets: [{
                     data: statusData.values,
-                    backgroundColor: ['#35B9FE', '#7B8BFD', '#4ADE80', '#FFC93C', '#FF6B6B', '#B0B0B0'],
+                    backgroundColor: ['#35B9FE', '#7B8BFD', '#4ADE80', '#FFC93C', '#F5A623', '#FF6B6B', '#B0B0B0'],
                     borderWidth: 0,
                 }]
             },

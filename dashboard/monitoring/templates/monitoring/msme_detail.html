@@ -50,6 +50,7 @@
         <div><span class="text-[#8a8a8a] block">DTI/SEC/CDA Reg. No.</span>{{ msme.dti_sec_cda_registration_no|default:"—" }}</div>
         <div><span class="text-[#8a8a8a] block">Filipino Ownership</span>{{ msme.filipino_ownership_percent }}%</div>
         <div><span class="text-[#8a8a8a] block">Outstanding Accountabilities</span>{% if msme.has_outstanding_accountabilities %}Yes{% else %}None{% endif %}</div>
+        <div><span class="text-[#8a8a8a] block">Export Firm</span>{% if msme.is_export_firm %}Yes{% else %}No{% endif %}</div>
     </div>
 
     <!-- Funding summary -->
@@ -60,7 +61,63 @@
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Total Outstanding Balance</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ total_outstanding_balance|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ total_outstanding_balance|floatformat:2 }}</span>
+        </div>
+    </div>
+
+    <!-- Auto-computed Impact KPI totals for a chosen quarter — a read-only
+         preview totaled live across this MSME's own projects (see
+         ImpactRecord.compute_project_estimate, scoped to msme.projects).
+         Nothing here is saved anywhere: it never touches ImpactRecord, so
+         it never shows up on the Impact KPI page's charts until staff
+         review it and log it there manually — deliberately a "what would
+         this MSME contribute" preview, not a running total. -->
+    <div class="rounded-[20px] bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Auto-Computed Impact KPI (Preview)</span>
+            <form method="get" class="flex items-center gap-2">
+                <select name="impact_quarter" onchange="this.form.submit()"
+                    class="h-9 rounded-[8px] border border-[#dcdcdc] px-2 font-['Inter',_sans-serif] text-xs">
+                    {% for value, label in impact_quarter_choices %}
+                    <option value="{{ value }}" {% if impact_quarter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <select name="impact_year" onchange="this.form.submit()"
+                    class="h-9 rounded-[8px] border border-[#dcdcdc] px-2 font-['Inter',_sans-serif] text-xs">
+                    {% for y in impact_year_choices %}
+                    <option value="{{ y }}" {% if impact_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        <p class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mb-3">
+            Totaled live across this MSME's projects — not saved anywhere, and not yet reflected in the office-wide
+            Impact KPI totals or charts. Review on the <a href="{% url 'reports' %}" class="text-[#09ACED] hover:underline">Impact KPI page</a>
+            and log it there once confirmed (e.g. after adding walk-ins or other non-project assistance).
+        </p>
+
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 font-['Inter',_sans-serif] text-sm">
+            <div>
+                <span class="text-[#8a8a8a] block">Entities Assisted</span>
+                <span class="text-black text-lg font-medium">{{ msme_quarter_estimate.entities_assisted }}</span>
+            </div>
+            <div>
+                <span class="text-[#8a8a8a] block">Jobs Created</span>
+                <span class="text-black text-lg font-medium">{{ msme_quarter_estimate.jobs_created }}</span>
+            </div>
+            <div>
+                <span class="text-[#8a8a8a] block">Tech. Interventions</span>
+                <span class="text-black text-lg font-medium">{{ msme_quarter_estimate.technology_interventions }}</span>
+            </div>
+            <div>
+                <span class="text-[#8a8a8a] block">Export Firms Assisted</span>
+                <span class="text-black text-lg font-medium">{{ msme_quarter_estimate.export_firms_assisted }}</span>
+            </div>
+            <div>
+                <span class="text-[#8a8a8a] block">Gross Sales</span>
+                <span class="text-black text-lg font-medium">₱{{ msme_quarter_estimate.gross_sales|floatformat:2 }}</span>
+            </div>
         </div>
     </div>
 
@@ -91,8 +148,8 @@
                             {{ project.get_status_display }}
                         </span>
                     </td>
-                    <td class="py-3 pr-4">₱{{ project.total_ifund_amount|floatformat:0 }}</td>
-                    <td class="py-3 pr-4">₱{{ project.remaining_balance|floatformat:0 }}</td>
+                    <td class="py-3 pr-4">₱{{ project.total_ifund_amount|floatformat:2 }}</td>
+                    <td class="py-3 pr-4">₱{{ project.remaining_balance|floatformat:2 }}</td>
                     <td class="py-3 pr-5 text-right">
                         <a href="{% url 'project_detail' project.pk %}" class="text-[#09ACED] font-medium hover:underline">
                             View →

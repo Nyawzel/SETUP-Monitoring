@@ -89,15 +89,15 @@
     <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">iFund Amount</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">₱{{ project.total_ifund_amount|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">₱{{ project.total_ifund_amount|floatformat:2 }}</span>
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Refunded</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#35B9FE]">₱{{ project.total_refunded|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#35B9FE]">₱{{ project.total_refunded|floatformat:2 }}</span>
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Outstanding</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ project.remaining_balance|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ project.remaining_balance|floatformat:2 }}</span>
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Refund Progress</span>
@@ -108,76 +108,18 @@
             {% if project.is_refund_delinquent %}
             <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#E24C4C]">Delinquent</span>
             <span class="block font-['Inter',_sans-serif] text-xs text-[#E24C4C]">{{ project.consecutive_missed_months }} overdue installment{{ project.consecutive_missed_months|pluralize }}</span>
+            {% elif project.is_refund_past_due %}
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#F5A623]">Past Due</span>
+            <span class="block font-['Inter',_sans-serif] text-xs text-[#F5A623]">{{ project.consecutive_missed_months }} overdue installment{{ project.consecutive_missed_months|pluralize }}</span>
             {% else %}
             <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#22A559]">Current</span>
             {% endif %}
         </div>
     </div>
 
-    <!-- Payment Schedule -->
-    <div class="rounded-[20px] bg-white p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Payment Schedule</span>
-            <a href="{% url 'project_payment_create' project.pk %}"
-                class="h-9 flex items-center px-4 rounded-[8px] font-['Inter',_sans-serif] text-xs font-medium text-white"
-                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
-                + Record Payment
-            </a>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
-                <thead>
-                    <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
-                        <th class="py-2 pr-4">Due Date</th>
-                        <th class="py-2 pr-4">Amount Due</th>
-                        <th class="py-2 pr-4">Status</th>
-                        <th class="py-2 pr-4">Payments Applied</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for installment in project.refund_installments.all %}
-                    <tr class="border-b border-[#f2f2f2] {% if installment.is_overdue %}bg-[#FDECEC]{% endif %}">
-                        <td class="py-2 pr-4 {% if installment.is_overdue %}text-[#E24C4C] font-medium{% endif %}">
-                            {{ installment.due_date }}
-                            {% if installment.is_overdue %}<span class="text-xs">(overdue)</span>{% endif %}
-                        </td>
-                        <td class="py-2 pr-4">₱{{ installment.amount_due|floatformat:0 }}</td>
-                        <td class="py-2 pr-4">
-                            <span class="px-2 py-0.5 rounded-full text-xs font-medium
-                                {% if installment.status == 'paid' %} bg-[#E9FBF0] text-[#22A559]
-                                {% elif installment.status == 'unpaid' and installment.is_overdue %} bg-[#FDECEC] text-[#E24C4C]
-                                {% elif installment.status == 'unpaid' %} bg-[#F8FAFB] text-[#8a8a8a]
-                                {% elif installment.status == 'waived' %} bg-[#E6F7FF] text-[#09ACED]
-                                {% else %} bg-[#FFF6E0] text-[#FFC93C]
-                                {% endif %}">
-                                {{ installment.get_status_display }}
-                            </span>
-                        </td>
-                        <td class="py-2 pr-4">
-                            {% for payment in installment.payments.all %}
-                            <span class="block text-xs">₱{{ payment.amount_paid|floatformat:0 }} on {{ payment.date_paid }}</span>
-                            {% empty %}
-                            <span class="text-[#8a8a8a]">—</span>
-                            {% endfor %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="4" class="py-4 text-[#8a8a8a]">No refund installments have been scheduled for this project yet.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Phase dates -->
-    <div class="rounded-[20px] bg-white p-4 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4 font-['Inter',_sans-serif] text-sm">
-        <div><span class="text-[#8a8a8a] block">Phase I Start</span>{{ project.phase1_start_date|default:"—" }}</div>
-        <div><span class="text-[#8a8a8a] block">Phase I Expected End</span>{{ project.phase1_expected_end_date|default:"—" }}</div>
-        <div><span class="text-[#8a8a8a] block">Refund Period</span>{{ project.refund_period_years|default:"—" }} years</div>
-        <div><span class="text-[#8a8a8a] block">Refund Start</span>{{ project.refund_start_date|default:"—" }}</div>
-    </div>
-
-    <!-- Summary -->
+    <!-- Summary — moved up near the top, right under the funding KPI
+         cards, so this overview lands before the detailed tables below
+         instead of after most of them. -->
     <div class="rounded-[20px] bg-white p-5">
         <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-3">Summary</span>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 font-['Inter',_sans-serif] text-sm">
@@ -194,7 +136,7 @@
             </div>
             <div>
                 <span class="text-[#8a8a8a] block">Equipment Items</span>
-                <span class="text-black">{{ summary.equipment_count }} (₱{{ summary.equipment_total_cost|floatformat:0 }})</span>
+                <span class="text-black">{{ summary.equipment_count }} (₱{{ summary.equipment_total_cost|floatformat:2 }})</span>
             </div>
             <div>
                 <span class="text-[#8a8a8a] block">Refund Payments Recorded</span>
@@ -203,7 +145,7 @@
             <div>
                 <span class="text-[#8a8a8a] block">Next Installment Due</span>
                 {% if summary.next_installment %}
-                <span class="text-black">{{ summary.next_installment.due_date }} — ₱{{ summary.next_installment.amount_due|floatformat:0 }}</span>
+                <span class="text-black">{{ summary.next_installment.due_date }} — ₱{{ summary.next_installment.amount_due|floatformat:2 }}</span>
                 {% else %}
                 <span class="text-[#8a8a8a]">—</span>
                 {% endif %}
@@ -211,10 +153,291 @@
         </div>
     </div>
 
+    <!-- Phase dates — moved up alongside Summary, for the same reason. -->
+    <div class="rounded-[20px] bg-white p-4 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4 font-['Inter',_sans-serif] text-sm">
+        <div><span class="text-[#8a8a8a] block">Phase I Start</span>{{ project.phase1_start_date|default:"—" }}</div>
+        <div><span class="text-[#8a8a8a] block">Phase I Expected End</span>{{ project.phase1_expected_end_date|default:"—" }}</div>
+        <div><span class="text-[#8a8a8a] block">Refund Period</span>{{ project.refund_period_years|default:"—" }} years</div>
+        <div><span class="text-[#8a8a8a] block">Refund Start</span>{{ project.refund_start_date|default:"—" }}</div>
+    </div>
+
+    <!-- Impact KPI Contribution — a general/baseline Jobs Created & Gross
+         Sales figure for this project (Project.jobs_created/gross_sales),
+         NOT broken down by quarter. For the actual per-quarter numbers
+         that feed the office-wide Impact KPI totals, see "Log Quarterly
+         Impact" below instead — this box is just a starting-point
+         estimate, typically filled in once Phase I implementation is
+         done. Export Firm is shown for context but isn't editable here —
+         that's an MSME-level flag, not a per-project one; edit it from
+         the MSME's own page. -->
+    <div class="rounded-[20px] bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+                <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Overall Project Outcomes</span>
+                <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Lifetime baseline figures, not broken down by quarter.</span>
+            </div>
+            <button type="button" onclick="document.getElementById('impact-data-display').classList.add('hidden'); document.getElementById('impact-data-form').classList.remove('hidden');"
+                id="impact-data-edit-btn"
+                class="text-xs font-medium text-[#09ACED] hover:underline transition-colors duration-150">
+                Edit
+            </button>
+        </div>
+
+        <div id="impact-data-display" class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4 font-['Inter',_sans-serif] text-sm">
+            <div>
+                <span class="text-[#8a8a8a] block">Jobs Created</span>
+                <span class="text-black text-lg font-medium">{{ project.jobs_created }}</span>
+            </div>
+            <div>
+                <span class="text-[#8a8a8a] block">Gross Sales</span>
+                <span class="text-black text-lg font-medium">₱{{ project.gross_sales|floatformat:2 }}</span>
+            </div>
+            <div>
+                <span class="text-[#8a8a8a] block">MSME Export Status</span>
+                {% if project.cooperator.is_export_firm %}
+                <span class="inline-block rounded-full bg-[#E9FBF0] px-3 py-1 text-xs font-medium text-[#22A559]">Export Firm</span>
+                {% else %}
+                <span class="inline-block rounded-full bg-[#F8FAFB] px-3 py-1 text-xs font-medium text-[#8a8a8a]">Not an Export Firm</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <form method="post" id="impact-data-form" class="hidden flex flex-wrap items-end gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_impact_data">
+            <div class="flex flex-col gap-1 w-40">
+                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Jobs Created</label>
+                {{ impact_form.jobs_created }}
+            </div>
+            <div class="flex flex-col gap-1 w-44">
+                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Gross Sales (₱)</label>
+                {{ impact_form.gross_sales }}
+            </div>
+            <button type="submit" class="h-10 px-4 rounded-[8px] bg-[#09ACED] text-white text-xs font-medium">
+                Save
+            </button>
+            <button type="button"
+                onclick="document.getElementById('impact-data-form').classList.add('hidden'); document.getElementById('impact-data-display').classList.remove('hidden');"
+                class="h-10 px-4 rounded-[8px] border border-[#dcdcdc] text-[#8a8a8a] text-xs font-medium">
+                Cancel
+            </button>
+        </form>
+    </div>
+
+    <!-- Log Quarterly Impact — the actual per-quarter Jobs Created / Gross
+         Sales entries (ProjectQuarterlyImpact) for this project, and what
+         ImpactRecord.compute_project_estimate reads office-wide.
+         Re-submitting the same quarter updates that entry instead of
+         creating a duplicate. -->
+    <div class="rounded-[20px] bg-white p-5">
+        <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-1">Log Quarterly Impact</span>
+        <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mb-3">
+            Jobs Created and Gross Sales generated by this project for a specific quarter. Submitting an existing
+            quarter updates that entry rather than creating a duplicate.
+        </span>
+
+        <form method="post" class="flex flex-wrap items-end gap-3 mb-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="log_quarterly_impact">
+
+            <div class="flex flex-col gap-1 w-24">
+                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Year</label>
+                {{ quarterly_impact_form.year }}
+            </div>
+            <div class="flex flex-col gap-1 w-40">
+                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Quarter</label>
+                {{ quarterly_impact_form.quarter }}
+            </div>
+            <div class="flex flex-col gap-1 w-40">
+                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Jobs Created</label>
+                {{ quarterly_impact_form.jobs_created }}
+            </div>
+            <div class="flex flex-col gap-1 w-44">
+                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Gross Sales (₱)</label>
+                {{ quarterly_impact_form.gross_sales }}
+            </div>
+            <div class="flex flex-col gap-1 min-w-[180px] flex-1">
+                <label class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Remarks</label>
+                {{ quarterly_impact_form.remarks }}
+            </div>
+
+            <button type="submit" class="h-10 px-4 rounded-[8px] bg-[#09ACED] text-white text-xs font-medium transition-all duration-200 hover:scale-[1.03] hover:brightness-110 hover:shadow-md active:scale-[0.97]">
+                Save
+            </button>
+        </form>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                <thead>
+                    <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                        <th class="py-2 pr-4">Quarter</th>
+                        <th class="py-2 pr-4">Jobs Created</th>
+                        <th class="py-2 pr-4">Gross Sales</th>
+                        <th class="py-2 pr-4">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in quarterly_impact_entries %}
+                    <tr class="border-b border-[#f2f2f2]">
+                        <td class="py-2 pr-4 font-medium text-black">{{ entry.get_quarter_display }} {{ entry.year }}</td>
+                        <td class="py-2 pr-4">{{ entry.jobs_created }}</td>
+                        <td class="py-2 pr-4">₱{{ entry.gross_sales|floatformat:2 }}</td>
+                        <td class="py-2 pr-4 text-[#8a8a8a]">{{ entry.remarks|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="py-4 text-[#8a8a8a]">No quarterly impact logged for this project yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+
+    <!-- Payment Schedule -->
+    <div class="rounded-[20px] bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Payment Schedule</span>
+            <a href="{% url 'project_payment_create' project.pk %}"
+                class="h-9 flex items-center px-4 rounded-[8px] font-['Inter',_sans-serif] text-xs font-medium text-white"
+                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                + Record Payment
+            </a>
+        </div>
+        <div class="overflow-x-auto overflow-y-auto max-h-[400px]">
+            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                        <th class="py-2 pr-4">Due Date</th>
+                        <th class="py-2 pr-4">Amount Due</th>
+                        <th class="py-2 pr-4">Status</th>
+                        <th class="py-2 pr-4">Payments Applied</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for installment in project.refund_installments.all %}
+                    <tr class="border-b border-[#f2f2f2] {% if installment.is_overdue %}bg-[#FDECEC]{% endif %}">
+                        <td class="py-2 pr-4 {% if installment.is_overdue %}text-[#E24C4C] font-medium{% endif %}">
+                            {{ installment.due_date }}
+                            {% if installment.is_overdue %}<span class="text-xs">(overdue)</span>{% endif %}
+                        </td>
+                        <td class="py-2 pr-4">₱{{ installment.amount_due|floatformat:2 }}</td>
+                        <td class="py-2 pr-4">
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                                {% if installment.status == 'paid' %} bg-[#E9FBF0] text-[#22A559]
+                                {% elif installment.status == 'unpaid' and installment.is_overdue %} bg-[#FDECEC] text-[#E24C4C]
+                                {% elif installment.status == 'unpaid' %} bg-[#F8FAFB] text-[#8a8a8a]
+                                {% elif installment.status == 'waived' %} bg-[#E6F7FF] text-[#09ACED]
+                                {% else %} bg-[#FFF6E0] text-[#FFC93C]
+                                {% endif %}">
+                                {{ installment.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="py-2 pr-4">
+                            {% for payment in installment.payments.all %}
+                            <span class="block text-xs">₱{{ payment.amount_paid|floatformat:2 }} on {{ payment.date_paid }}</span>
+                            {% empty %}
+                            <span class="text-[#8a8a8a]">—</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="py-4 text-[#8a8a8a]">No refund installments have been scheduled for this project yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Line-Item Budget — the itemized breakdown of what this project's
+         total_ifund_amount is actually being spent on (equipment,
+         training, lab analysis, etc.), each with its own approved vs.
+         disbursed amount. Same BudgetLineItem rows shown/searchable
+         across all projects on the Funding page. -->
+    <div class="rounded-[20px] bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Line-Item Budget</span>
+            <a href="{% url 'project_budget_item_create' project.pk %}"
+                class="h-9 flex items-center px-4 rounded-[8px] font-['Inter',_sans-serif] text-xs font-medium text-white"
+                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                + Add Budget Item
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                <thead>
+                    <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                        <th class="py-2 pr-4">Description</th>
+                        <th class="py-2 pr-4">Category</th>
+                        <th class="py-2 pr-4">Approved</th>
+                        <th class="py-2 pr-4">Disbursed</th>
+                        <th class="py-2 pr-4">Unexpended</th>
+                        <th class="py-2 pr-4"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in project.budget_items.all %}
+                    <tr class="border-b border-[#f2f2f2]">
+                        <td class="py-2 pr-4">{{ item.description }}</td>
+                        <td class="py-2 pr-4">{{ item.get_category_display }}</td>
+                        <td class="py-2 pr-4">₱{{ item.approved_amount|floatformat:2 }}</td>
+                        <td class="py-2 pr-4">₱{{ item.disbursed_amount|floatformat:2 }}</td>
+                        <td class="py-2 pr-4">₱{{ item.unexpended_balance|floatformat:2 }}</td>
+                        <td class="py-2 pr-4 text-right">
+                            <a href="{% url 'budget_item_edit' item.pk %}" class="text-[#09ACED] font-medium hover:underline">Edit</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="py-4 text-[#8a8a8a]">No budget line items recorded for this project yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Equipment — moved up next to Line-Item Budget since acquired
+         equipment is usually what that budget is funding; previously this
+         section sat at the very bottom of the page, well below sections
+         staff check far less often. -->
+    <div class="rounded-[20px] bg-white p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Equipment</span>
+            <a href="{% url 'equipment_create' project.pk %}"
+                class="h-9 flex items-center px-4 rounded-[8px] font-['Inter',_sans-serif] text-xs font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg hover:brightness-110 active:scale-95"
+                style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                + Add Equipment
+            </a>
+        </div>
+        <div class="overflow-x-auto overflow-y-auto max-h-[400px]">
+            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
+                        <th class="py-2 pr-4">Item</th>
+                        <th class="py-2 pr-4">Supplier</th>
+                        <th class="py-2 pr-4">Cost</th>
+                        <th class="py-2 pr-4">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in project.equipment.all %}
+                    <tr class="border-b border-[#f2f2f2]">
+                        <td class="py-2 pr-4">{{ item.name }}</td>
+                        <td class="py-2 pr-4">{{ item.supplier_fabricator|default:"—" }}</td>
+                        <td class="py-2 pr-4">₱{{ item.acquisition_cost|floatformat:2 }}</td>
+                        <td class="py-2 pr-4">{{ item.get_status_display }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="py-4 text-[#8a8a8a]">No equipment recorded yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    
     <!-- Timeline -->
     <div class="rounded-[20px] bg-white p-5">
         <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-3">Timeline</span>
-        <div class="flex flex-col">
+        <div class="flex flex-col max-h-[400px] overflow-y-auto pr-2">
             {% for event in timeline %}
             <div class="flex items-start gap-3 py-2 {% if not forloop.last %}border-b border-[#f2f2f2]{% endif %}">
                 <span class="w-2 h-2 rounded-full mt-1.5 shrink-0
@@ -233,33 +456,63 @@
         </div>
     </div>
 
-    <!-- Requirements checklist -->
+    <!-- Requirements checklist — grouped by phase, since a project can have
+         Phase I, Phase II, and Completion gate items all existing at once
+         (each auto-created as the project advances) -->
     <div class="rounded-[20px] bg-white p-5">
         <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-3">
-            Application Requirements ({{ project.requirements_completion_percent }}% complete)
+            Requirements ({{ project.requirements_completion_percent }}% complete overall)
         </span>
-        <div class="flex flex-col gap-2">
-            {% for req, form in requirement_forms %}
-            <div class="flex flex-wrap items-center gap-3 border-b border-[#f2f2f2] py-3">
-                <span class="w-4 h-4 rounded-full shrink-0 {% if req.is_submitted %}bg-[#22A559]{% else %}bg-[#dcdcdc]{% endif %}"></span>
-                <span class="flex-1 min-w-[200px] font-['Inter',_sans-serif] text-sm text-black">
-                    {{ req.get_requirement_type_display }}
-                </span>
-                {% if req.file %}
-                <a href="{{ req.file.url }}" target="_blank" class="text-[#09ACED] text-sm hover:underline">Current file ↗</a>
-                {% endif %}
-                <form method="post" enctype="multipart/form-data" class="flex items-center gap-2">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="upload_requirement">
-                    <input type="hidden" name="requirement_id" value="{{ req.pk }}">
-                    {{ form.file }}
-                    <button type="submit" class="h-9 px-3 rounded-[8px] bg-[#09ACED] text-white text-xs font-medium">Upload</button>
-                </form>
-            </div>
-            {% empty %}
-            <p class="text-[#8a8a8a] text-sm">No requirements have been set up for this project yet.</p>
-            {% endfor %}
+
+        <!-- No per-row Upload button anymore — pick a file at each
+             requirement you're ready to submit (as many or as few as you
+             like, in any order), then hit "Upload All" once at the end.
+             Nothing actually uploads until that click; picking a file just
+             stages it (see the JS at the bottom of this page). Each file
+             is tied explicitly to the row you picked it at, so there's no
+             positional guessing about which file matches which
+             requirement. -->
+        {% csrf_token %}
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 rounded-[10px] bg-[#F8FAFB] px-4 py-3">
+            <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
+                Pick a file for each requirement below, then upload them all together.
+            </span>
+            <button type="button" id="requirements-upload-all" disabled
+                class="h-9 px-4 rounded-[8px] bg-[#09ACED] text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
+                Upload All (<span id="requirements-staged-count">0</span>)
+            </button>
         </div>
+
+        {% for group in requirement_groups %}
+        <div class="mb-5 last:mb-0">
+            <span class="block font-['Inter',_sans-serif] text-sm font-semibold text-[#8a8a8a] uppercase tracking-wide mb-1">
+                {{ group.label }} — {{ group.percent }}%
+            </span>
+            <div class="flex flex-col gap-2">
+                {% for req, form in group.forms %}
+                <div class="flex flex-wrap items-center gap-3 border-b border-[#f2f2f2] py-3">
+                    <span class="w-4 h-4 rounded-full shrink-0 {% if req.is_submitted %}bg-[#22A559]{% else %}bg-[#dcdcdc]{% endif %}"></span>
+                    <span class="flex-1 min-w-[200px] font-['Inter',_sans-serif] text-sm text-black">
+                        {{ req.get_requirement_type_display }}
+                    </span>
+                    {% if req.file %}
+                    <a href="{{ req.file.url }}" target="_blank" class="text-[#09ACED] text-sm hover:underline">Current file ↗</a>
+                    <form method="post" class="inline" onsubmit="return confirm('Remove this file? The requirement will go back to not submitted.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_requirement_file">
+                        <input type="hidden" name="requirement_id" value="{{ req.pk }}">
+                        <button type="submit" class="text-[#E24C4C] text-xs hover:underline">Delete</button>
+                    </form>
+                    {% endif %}
+                    <input type="file" class="req-file-input" data-requirement-id="{{ req.pk }}">
+                    <span class="req-file-status text-xs text-[#8a8a8a]" data-requirement-id="{{ req.pk }}"></span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-[#8a8a8a] text-sm">No requirements have been set up for this project yet.</p>
+        {% endfor %}
     </div>
 
     <!-- Monitoring reports -->
@@ -276,6 +529,12 @@
                 </span>
                 {% if rep.file %}
                 <a href="{{ rep.file.url }}" target="_blank" class="text-[#09ACED] text-sm hover:underline">Current file ↗</a>
+                <form method="post" class="inline" onsubmit="return confirm('Remove this file? The report will go back to not submitted.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_report_file">
+                    <input type="hidden" name="report_id" value="{{ rep.pk }}">
+                    <button type="submit" class="text-[#E24C4C] text-xs hover:underline">Delete</button>
+                </form>
                 {% endif %}
                 <form method="post" enctype="multipart/form-data" class="flex items-center gap-2">
                     {% csrf_token %}
@@ -290,33 +549,6 @@
             <p class="text-[#8a8a8a] text-sm">No monitoring reports have been scheduled for this project yet.</p>
             {% endfor %}
         </div>
-    </div>
-
-    <!-- Equipment -->
-    <div class="rounded-[20px] bg-white p-5">
-        <span class="block font-['Inter',_sans-serif] text-xl font-medium text-black mb-3">Equipment</span>
-        <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
-            <thead>
-                <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
-                    <th class="py-2 pr-4">Item</th>
-                    <th class="py-2 pr-4">Supplier</th>
-                    <th class="py-2 pr-4">Cost</th>
-                    <th class="py-2 pr-4">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in project.equipment.all %}
-                <tr class="border-b border-[#f2f2f2]">
-                    <td class="py-2 pr-4">{{ item.name }}</td>
-                    <td class="py-2 pr-4">{{ item.supplier_fabricator|default:"—" }}</td>
-                    <td class="py-2 pr-4">₱{{ item.acquisition_cost|floatformat:0 }}</td>
-                    <td class="py-2 pr-4">{{ item.get_status_display }}</td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="4" class="py-4 text-[#8a8a8a]">No equipment recorded yet.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
     </div>
 
 </div>
@@ -351,5 +583,125 @@
             }
         });
     })();
+
+    // Per-requirement file staging — pick a file at any requirement row
+    // (in any order, as many or as few as needed), which just stages it
+    // locally without uploading anything yet. "Upload All" then sends the
+    // staged files one at a time (a queue, not one big request) against
+    // upload_requirement_async, each explicitly tagged with the row it was
+    // picked at — no positional matching involved, so there's no risk of a
+    // file landing on the wrong requirement.
+    (function () {
+        var fileInputs = document.querySelectorAll('.req-file-input');
+        var uploadAllBtn = document.getElementById('requirements-upload-all');
+        var stagedCountEl = document.getElementById('requirements-staged-count');
+        if (!uploadAllBtn || fileInputs.length === 0) return;
+
+        var staged = {}; // requirement_id -> File
+
+        function updateCount() {
+            var count = Object.keys(staged).length;
+            stagedCountEl.textContent = count;
+            uploadAllBtn.disabled = count === 0;
+        }
+
+        function statusFor(reqId) {
+            return document.querySelector('.req-file-status[data-requirement-id="' + reqId + '"]');
+        }
+
+        Array.prototype.forEach.call(fileInputs, function (input) {
+            input.addEventListener('change', function () {
+                var reqId = input.getAttribute('data-requirement-id');
+                var statusEl = statusFor(reqId);
+                if (input.files && input.files[0]) {
+                    staged[reqId] = input.files[0];
+                    if (statusEl) {
+                        statusEl.textContent = 'Staged: ' + input.files[0].name;
+                        statusEl.className = "req-file-status text-xs text-[#09ACED]";
+                    }
+                } else {
+                    delete staged[reqId];
+                    if (statusEl) statusEl.textContent = '';
+                }
+                updateCount();
+            });
+        });
+
+        uploadAllBtn.addEventListener('click', function () {
+            var entries = Object.keys(staged);
+            if (entries.length === 0) return;
+
+            uploadAllBtn.disabled = true;
+            Array.prototype.forEach.call(fileInputs, function (input) { input.disabled = true; });
+
+            var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+            var csrfToken = csrfEl ? csrfEl.value : '';
+            var url = window.location.href;
+            var index = 0;
+            var succeeded = 0;
+            var failed = 0;
+
+            function uploadOne() {
+                if (index >= entries.length) {
+                    uploadAllBtn.textContent = succeeded + ' uploaded' + (failed ? ', ' + failed + ' failed' : '') + ' — reloading…';
+                    setTimeout(function () { window.location.reload(); }, 800);
+                    return;
+                }
+
+                var reqId = entries[index];
+                var file = staged[reqId];
+                var statusEl = statusFor(reqId);
+                if (statusEl) {
+                    statusEl.textContent = 'Uploading…';
+                    statusEl.className = "req-file-status text-xs text-[#09ACED]";
+                }
+                uploadAllBtn.textContent = 'Uploading ' + (index + 1) + ' of ' + entries.length + '…';
+
+                var body = new FormData();
+                body.append('action', 'upload_requirement_async');
+                body.append('requirement_id', reqId);
+                body.append('file', file);
+
+                fetch(url, {
+                    method: 'POST',
+                    body: body,
+                    headers: { 'X-CSRFToken': csrfToken },
+                    credentials: 'same-origin',
+                })
+                    .then(function (resp) {
+                        return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+                    })
+                    .then(function (result) {
+                        if (result.ok && result.data.ok) {
+                            if (statusEl) {
+                                statusEl.textContent = '✓ Uploaded';
+                                statusEl.className = "req-file-status text-xs text-[#22A559] font-medium";
+                            }
+                            succeeded++;
+                        } else {
+                            if (statusEl) {
+                                statusEl.textContent = '✗ ' + (result.data.error || 'Failed');
+                                statusEl.className = "req-file-status text-xs text-[#E24C4C] font-medium";
+                            }
+                            failed++;
+                        }
+                    })
+                    .catch(function () {
+                        if (statusEl) {
+                            statusEl.textContent = '✗ Network error';
+                            statusEl.className = "req-file-status text-xs text-[#E24C4C] font-medium";
+                        }
+                        failed++;
+                    })
+                    .then(function () {
+                        index++;
+                        uploadOne();
+                    });
+            }
+
+            uploadOne();
+        });
+    })();
+
 </script>
 {% endblock %}

@@ -17,21 +17,21 @@
     </div>
     {% endif %}
 
-    <h1 class="pl-2 font-['Arial-Regular',_sans-serif] text-[40px] text-black">Funding</h1>
+    <h1 class="pl-2 font-['Arial-Regular',_sans-serif] text-[40px] text-black">Funding and Payments</h1>
 
     <!-- KPIs -->
     <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Total Disbursed</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">₱{{ total_disbursed|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">₱{{ total_disbursed|floatformat:2 }}</span>
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Total Refunded</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#35B9FE]">₱{{ total_refunded|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#35B9FE]">₱{{ total_refunded|floatformat:2 }}</span>
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Outstanding Balance</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ outstanding_balance|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#FFC93C]">₱{{ outstanding_balance|floatformat:2 }}</span>
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Collection Rate</span>
@@ -39,44 +39,266 @@
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Approved Line-Item Budget</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">₱{{ total_approved_budget|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-black">₱{{ total_approved_budget|floatformat:2 }}</span>
         </div>
         <div class="rounded-[20px] bg-white p-4">
             <span class="block font-['Inter',_sans-serif] text-sm text-[#8a8a8a]">Budget Disbursed</span>
-            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#22A559]">₱{{ total_disbursed_budget|floatformat:0 }}</span>
+            <span class="block font-['Inter',_sans-serif] text-2xl font-semibold text-[#22A559]">₱{{ total_disbursed_budget|floatformat:2 }}</span>
         </div>
     </div>
+
+    <!-- Overdue / Upcoming loan installments — one row per PROJECT (not
+         per installment), showing how many payments are past due/upcoming
+         and the total amount; click a row to expand it and see the
+         individual installments. <details>/<summary> is used instead of
+         JS — native expand/collapse, keyboard-accessible, no click
+         handler needed except stopping the project link's click from
+         also toggling the row. -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+        <div class="rounded-[20px] bg-white p-5">
+            <div class="flex items-center justify-between gap-3 mb-1">
+                <span class="font-['Inter',_sans-serif] text-lg font-medium text-black">Overdue Installments</span>
+                <span class="inline-block rounded-full bg-[#FDECEC] px-3 py-1 text-xs font-medium text-[#E24C4C]">
+                    {{ overdue_installments_count }}
+                </span>
+            </div>
+            <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mb-3">
+                ₱{{ overdue_total|floatformat:2 }} total outstanding past due, across {{ overdue_by_project|length }} project{{ overdue_by_project|length|pluralize }}
+            </span>
+            <div class="overflow-y-auto max-h-[320px] font-['Inter',_sans-serif] text-sm divide-y divide-[#f2f2f2]">
+                {% for row in overdue_by_project %}
+                <details>
+                    <summary class="cursor-pointer list-none flex items-center justify-between gap-3 py-2.5 px-1 hover:bg-[#FDECEC]/40 rounded-[8px] marker:content-none">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-[#8a8a8a] shrink-0 transition-transform details-arrow">▸</span>
+                            <div class="min-w-0">
+                                <span class="block text-[10px] font-semibold text-[#E24C4C] uppercase tracking-wide">
+                                    {{ row.urgent_installment.due_date }} ·
+                                    {% if row.urgent_installment.months_overdue > 0 %}
+                                        {{ row.urgent_installment.months_overdue }} mo{{ row.urgent_installment.months_overdue|pluralize }}, {{ row.urgent_installment.days_overdue_remainder }} day{{ row.urgent_installment.days_overdue_remainder|pluralize }} overdue
+                                    {% else %}
+                                        {{ row.urgent_installment.days_overdue }} day{{ row.urgent_installment.days_overdue|pluralize }} overdue
+                                    {% endif %}
+                                </span>
+                                <a href="{% url 'project_detail' row.project.pk %}" onclick="event.stopPropagation();" class="text-[#09ACED] hover:underline font-medium truncate block">
+                                    {{ row.project.title }}
+                                </a>
+                                <span class="text-xs text-[#8a8a8a] truncate block">{{ row.project.cooperator.name }}</span>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="block text-[#E24C4C] font-medium whitespace-nowrap">
+                                {{ row.count }} payment{{ row.count|pluralize }} overdue
+                            </span>
+                            <span class="block text-black text-xs whitespace-nowrap">₱{{ row.total_amount|floatformat:2 }}</span>
+                        </div>
+                    </summary>
+                    <div class="pl-6 pb-2">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="text-[#8a8a8a]">
+                                    <th class="py-1 pr-4 font-normal">Due Date</th>
+                                    <th class="py-1 pr-4 font-normal">Amount Due</th>
+                                    <th class="py-1 pr-4 font-normal">Overdue By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for installment in row.installments %}
+                                <tr class="border-t border-[#f2f2f2]">
+                                    <td class="py-1.5 pr-4">{{ installment.due_date }}</td>
+                                    <td class="py-1.5 pr-4">₱{{ installment.amount_due|floatformat:2 }}</td>
+                                    <td class="py-1.5 pr-4 text-[#E24C4C] font-medium whitespace-nowrap">
+                                        {% if installment.months_overdue > 0 %}
+                                            {{ installment.months_overdue }} mo{{ installment.months_overdue|pluralize }},
+                                            {{ installment.days_overdue_remainder }} day{{ installment.days_overdue_remainder|pluralize }}
+                                        {% else %}
+                                            {{ installment.days_overdue }} day{{ installment.days_overdue|pluralize }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+                {% empty %}
+                <p class="py-4 text-[#8a8a8a]">No overdue installments — everything's current.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="rounded-[20px] bg-white p-5">
+            <div class="flex items-center justify-between gap-3 mb-1">
+                <span class="font-['Inter',_sans-serif] text-lg font-medium text-black">Upcoming Installments</span>
+                <span class="inline-block rounded-full bg-[#FFF8E6] px-3 py-1 text-xs font-medium text-[#C98A00]">
+                    {{ upcoming_installments_count }}
+                </span>
+            </div>
+            <span class="block font-['Inter',_sans-serif] text-xs text-[#8a8a8a] mb-3">
+                ₱{{ upcoming_total|floatformat:2 }} due in the next {{ upcoming_window_days }} days, across {{ upcoming_by_project|length }} project{{ upcoming_by_project|length|pluralize }}
+            </span>
+            <div class="overflow-y-auto max-h-[320px] font-['Inter',_sans-serif] text-sm divide-y divide-[#f2f2f2]">
+                {% for row in upcoming_by_project %}
+                <details>
+                    <summary class="cursor-pointer list-none flex items-center justify-between gap-3 py-2.5 px-1 hover:bg-[#FFF8E6]/40 rounded-[8px] marker:content-none">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-[#8a8a8a] shrink-0 transition-transform details-arrow">▸</span>
+                            <div class="min-w-0">
+                                <span class="block text-[10px] font-semibold text-[#C98A00] uppercase tracking-wide">
+                                    {{ row.urgent_installment.due_date }} ·
+                                    {% if row.urgent_installment.days_until_due == 0 %}
+                                        Due Today
+                                    {% else %}
+                                        Due in {{ row.urgent_installment.days_until_due }} day{{ row.urgent_installment.days_until_due|pluralize }}
+                                    {% endif %}
+                                </span>
+                                <a href="{% url 'project_detail' row.project.pk %}" onclick="event.stopPropagation();" class="text-[#09ACED] hover:underline font-medium truncate block">
+                                    {{ row.project.title }}
+                                </a>
+                                <span class="text-xs text-[#8a8a8a] truncate block">{{ row.project.cooperator.name }}</span>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="block text-[#C98A00] font-medium whitespace-nowrap">
+                                {{ row.count }} payment{{ row.count|pluralize }} due soon
+                            </span>
+                            <span class="block text-black text-xs whitespace-nowrap">₱{{ row.total_amount|floatformat:2 }}</span>
+                        </div>
+                    </summary>
+                    <div class="pl-6 pb-2">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="text-[#8a8a8a]">
+                                    <th class="py-1 pr-4 font-normal">Due Date</th>
+                                    <th class="py-1 pr-4 font-normal">Amount Due</th>
+                                    <th class="py-1 pr-4 font-normal">Due In</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for installment in row.installments %}
+                                <tr class="border-t border-[#f2f2f2]">
+                                    <td class="py-1.5 pr-4">{{ installment.due_date }}</td>
+                                    <td class="py-1.5 pr-4">₱{{ installment.amount_due|floatformat:2 }}</td>
+                                    <td class="py-1.5 pr-4 text-[#C98A00] font-medium whitespace-nowrap">
+                                        {% if installment.days_until_due == 0 %}
+                                            Due Today
+                                        {% else %}
+                                            {{ installment.days_until_due }} day{{ installment.days_until_due|pluralize }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+                {% empty %}
+                <p class="py-4 text-[#8a8a8a]">Nothing due in the next {{ upcoming_window_days }} days.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Rotate the ▸ arrow to ▾ when its <details> is open, and hide the
+           browser's own default disclosure triangle (marker) since the
+           custom arrow replaces it. */
+        details > summary::-webkit-details-marker { display: none; }
+        details[open] .details-arrow { transform: rotate(90deg); }
+    </style>
 
     <!-- Approved Line-Item Budget -->
     <div class="rounded-[20px] bg-white p-5">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
             <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Approved Line-Item Budget</span>
-            <form method="get" class="flex flex-wrap items-center gap-2.5">
-                <input type="hidden" name="payment_q" value="{{ payment_query }}">
-                <input
-                    type="text" name="item_q" value="{{ item_query }}" placeholder="Search project or description"
-                    class="h-9 rounded-[8px] bg-[#F8FAFB] border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black"
-                >
-                <select name="category" class="h-9 rounded-[8px] bg-[#F8FAFB] border border-[#dcdcdc] px-2 font-['Inter',_sans-serif] text-sm text-black">
-                    <option value="">All Categories</option>
-                    {% for value, label in category_choices %}
-                    <option value="{{ value }}" {% if category_filter == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" class="h-9 px-4 rounded-[8px] bg-[#09ACED] text-white text-xs font-medium transition-all duration-200 hover:scale-105 hover:shadow-md hover:bg-[#08a0da] active:scale-95">Filter</button>
-            </form>
+            <div class="flex flex-wrap items-center gap-2.5">
+                <a href="{% url 'budget_item_create' %}"
+                    class="h-9 flex items-center px-4 rounded-[8px] font-['Inter',_sans-serif] text-xs font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg hover:brightness-110 active:scale-95"
+                    style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
+                    + Add Budget Item
+                </a>
+                <form method="get"
+                    hx-get="{% url 'funding_overview' %}" hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                    class="flex flex-wrap items-center gap-2.5">
+                    <input type="hidden" name="payment_q" value="{{ payment_query }}">
+                    <input type="hidden" name="payment_sort" value="{{ payment_sort }}">
+                    <input type="hidden" name="payment_page" value="{{ payments.number }}">
+                    <input type="hidden" name="payment_date_from" value="{{ payment_date_from }}">
+                    <input type="hidden" name="payment_date_to" value="{{ payment_date_to }}">
+                    <input
+                        type="text" name="item_q" value="{{ item_query }}" placeholder="Search project or description"
+                        class="h-9 rounded-[8px] bg-[#F8FAFB] border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black"
+                    >
+                    <select name="category" class="h-9 rounded-[8px] bg-[#F8FAFB] border border-[#dcdcdc] px-2 font-['Inter',_sans-serif] text-sm text-black">
+                        <option value="">All Categories</option>
+                        {% for value, label in category_choices %}
+                        <option value="{{ value }}" {% if category_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="h-9 px-4 rounded-[8px] bg-[#09ACED] text-white text-xs font-medium transition-all duration-200 hover:scale-105 hover:shadow-md hover:bg-[#08a0da] active:scale-95">Filter</button>
+                </form>
+            </div>
         </div>
-        <div class="overflow-x-auto">
+        <div id="budget-items-table-container" class="overflow-x-auto overflow-y-auto max-h-[400px]">
             <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
-                <thead>
+                <thead class="sticky top-0 bg-white">
                     <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
-                        <th class="py-2 pr-4">Project</th>
-                        <th class="py-2 pr-4">MSME</th>
-                        <th class="py-2 pr-4">Description</th>
-                        <th class="py-2 pr-4">Category</th>
-                        <th class="py-2 pr-4">Approved</th>
-                        <th class="py-2 pr-4">Disbursed</th>
-                        <th class="py-2 pr-4">Unexpended</th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'project' %}-project{% else %}project{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'project' %}-project{% else %}project{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Project {% if item_sort == 'project' %}↑{% elif item_sort == '-project' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'msme' %}-msme{% else %}msme{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'msme' %}-msme{% else %}msme{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                MSME {% if item_sort == 'msme' %}↑{% elif item_sort == '-msme' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'description' %}-description{% else %}description{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'description' %}-description{% else %}description{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Description {% if item_sort == 'description' %}↑{% elif item_sort == '-description' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'category' %}-category{% else %}category{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'category' %}-category{% else %}category{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Category {% if item_sort == 'category' %}↑{% elif item_sort == '-category' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'approved' %}-approved{% else %}approved{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'approved' %}-approved{% else %}approved{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Approved {% if item_sort == 'approved' %}↑{% elif item_sort == '-approved' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'disbursed' %}-disbursed{% else %}disbursed{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'disbursed' %}-disbursed{% else %}disbursed{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Disbursed {% if item_sort == 'disbursed' %}↑{% elif item_sort == '-disbursed' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'unexpended' %}-unexpended{% else %}unexpended{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&item_sort={% if item_sort == 'unexpended' %}-unexpended{% else %}unexpended{% endif %}&payment_q={{ payment_query }}&payment_sort={{ payment_sort }}&payment_page={{ payments.number }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}"
+                                hx-target="#budget-items-table-container" hx-select="#budget-items-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Unexpended {% if item_sort == 'unexpended' %}↑{% elif item_sort == '-unexpended' %}↓{% endif %}
+                            </a>
+                        </th>
                         <th class="py-2 pr-4"></th>
                     </tr>
                 </thead>
@@ -89,9 +311,9 @@
                         <td class="py-2 pr-4">{{ item.project.cooperator.name }}</td>
                         <td class="py-2 pr-4">{{ item.description }}</td>
                         <td class="py-2 pr-4">{{ item.get_category_display }}</td>
-                        <td class="py-2 pr-4">₱{{ item.approved_amount|floatformat:0 }}</td>
-                        <td class="py-2 pr-4">₱{{ item.disbursed_amount|floatformat:0 }}</td>
-                        <td class="py-2 pr-4">₱{{ item.unexpended_balance|floatformat:0 }}</td>
+                        <td class="py-2 pr-4">₱{{ item.approved_amount|floatformat:2 }}</td>
+                        <td class="py-2 pr-4">₱{{ item.disbursed_amount|floatformat:2 }}</td>
+                        <td class="py-2 pr-4">₱{{ item.unexpended_balance|floatformat:2 }}</td>
                         <td class="py-2 pr-4 text-right">
                             <a href="{% url 'budget_item_edit' item.pk %}" class="text-[#09ACED] font-medium hover:underline transition-colors duration-150">Edit</a>
                         </td>
@@ -109,7 +331,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
             <span class="font-['Inter',_sans-serif] text-xl font-medium text-black">Refund Payment Ledger</span>
             <div class="flex items-center gap-3">
-                <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">Showing the most recent 50 payments</span>
+                <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">{{ payments.paginator.count }} payment{{ payments.paginator.count|pluralize }}</span>
                 <a href="{% url 'refund_payment_create' %}"
                     class="h-9 flex items-center px-4 rounded-[8px] font-['Inter',_sans-serif] text-xs font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg hover:brightness-110 active:scale-95"
                     style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
@@ -117,24 +339,73 @@
                 </a>
             </div>
         </div>
-        <form method="get" class="flex flex-wrap items-center gap-2.5 mb-3">
+        <form method="get"
+            hx-get="{% url 'funding_overview' %}" hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+            class="flex flex-wrap items-center gap-2.5 mb-3">
             <input type="hidden" name="item_q" value="{{ item_query }}">
             <input type="hidden" name="category" value="{{ category_filter }}">
+            <input type="hidden" name="payment_sort" value="{{ payment_sort }}">
             <input
                 type="text" name="payment_q" value="{{ payment_query }}" placeholder="Search project, MSME, or O.R. number"
                 class="h-9 rounded-[8px] bg-[#F8FAFB] border border-[#dcdcdc] px-3 font-['Inter',_sans-serif] text-sm text-black min-w-[240px]"
             >
+            <label class="flex items-center gap-1.5 font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
+                From
+                <input type="date" name="payment_date_from" value="{{ payment_date_from }}"
+                    class="h-9 rounded-[8px] bg-[#F8FAFB] border border-[#dcdcdc] px-2 font-['Inter',_sans-serif] text-sm text-black">
+            </label>
+            <label class="flex items-center gap-1.5 font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
+                To
+                <input type="date" name="payment_date_to" value="{{ payment_date_to }}"
+                    class="h-9 rounded-[8px] bg-[#F8FAFB] border border-[#dcdcdc] px-2 font-['Inter',_sans-serif] text-sm text-black">
+            </label>
             <button type="submit" class="h-9 px-4 rounded-[8px] bg-[#09ACED] text-white text-xs font-medium transition-all duration-200 hover:scale-105 hover:shadow-md hover:bg-[#08a0da] active:scale-95">Search</button>
         </form>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
-                <thead>
+        <div id="payments-table-container">
+            <div class="overflow-x-auto overflow-y-auto max-h-[400px]">
+                <table class="w-full text-left font-['Inter',_sans-serif] text-sm">
+                <thead class="sticky top-0 bg-white">
                     <tr class="border-b border-[#e5e5e5] text-[#8a8a8a]">
-                        <th class="py-2 pr-4">Date Paid</th>
-                        <th class="py-2 pr-4">Project</th>
-                        <th class="py-2 pr-4">MSME</th>
-                        <th class="py-2 pr-4">Amount</th>
-                        <th class="py-2 pr-4">O.R. Number</th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'date' %}-date{% else %}date{% endif %}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'date' %}-date{% else %}date{% endif %}"
+                                hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Date Paid {% if payment_sort == 'date' %}↑{% elif payment_sort == '-date' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'project' %}-project{% else %}project{% endif %}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'project' %}-project{% else %}project{% endif %}"
+                                hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Project {% if payment_sort == 'project' %}↑{% elif payment_sort == '-project' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'msme' %}-msme{% else %}msme{% endif %}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'msme' %}-msme{% else %}msme{% endif %}"
+                                hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                MSME {% if payment_sort == 'msme' %}↑{% elif payment_sort == '-msme' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'amount' %}-amount{% else %}amount{% endif %}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'amount' %}-amount{% else %}amount{% endif %}"
+                                hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                Amount {% if payment_sort == 'amount' %}↑{% elif payment_sort == '-amount' %}↓{% endif %}
+                            </a>
+                        </th>
+                        <th class="py-2 pr-4">
+                            <a href="?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'or_number' %}-or_number{% else %}or_number{% endif %}"
+                                hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={% if payment_sort == 'or_number' %}-or_number{% else %}or_number{% endif %}"
+                                hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+                                class="hover:text-black">
+                                O.R. Number {% if payment_sort == 'or_number' %}↑{% elif payment_sort == '-or_number' %}↓{% endif %}
+                            </a>
+                        </th>
                         <th class="py-2 pr-4">Receipt</th>
                         <th class="py-2 pr-4"></th>
                     </tr>
@@ -147,7 +418,7 @@
                             <a href="{% url 'project_detail' payment.project.pk %}" class="text-[#09ACED] hover:underline">{{ payment.project.title }}</a>
                         </td>
                         <td class="py-2 pr-4">{{ payment.project.cooperator.name }}</td>
-                        <td class="py-2 pr-4">₱{{ payment.amount_paid|floatformat:0 }}</td>
+                        <td class="py-2 pr-4">₱{{ payment.amount_paid|floatformat:2 }}</td>
                         <td class="py-2 pr-4">{{ payment.or_number|default:"—" }}</td>
                         <td class="py-2 pr-4">
                             {% if payment.receipt_file %}
@@ -164,7 +435,45 @@
                     <tr><td colspan="7" class="py-4 text-[#8a8a8a]">No refund payments match your search.</td></tr>
                     {% endfor %}
                 </tbody>
-            </table>
+                </table>
+            </div>
+
+            <!-- Pagination — sort ascending by Date Paid (click the header
+                 above) and page through from page 1 to reach the oldest
+                 payments on record; nothing from past years is hidden, it's
+                 just spread across pages instead of one ever-growing table. -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-3 mt-2 border-t border-[#f2f2f2]">
+                <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
+                    Page {{ payments.number }} of {{ payments.paginator.num_pages }}
+                </span>
+                <div class="flex items-center gap-2">
+                    {% if payments.has_previous %}
+                    <a href="?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={{ payment_sort }}&payment_page={{ payments.previous_page_number }}"
+                        hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={{ payment_sort }}&payment_page={{ payments.previous_page_number }}"
+                        hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+                        class="h-8 flex items-center px-3 rounded-[8px] border border-[#dcdcdc] font-['Inter',_sans-serif] text-xs font-medium text-black hover:bg-[#F8FAFB]">
+                        ← Previous
+                    </a>
+                    {% else %}
+                    <span class="h-8 flex items-center px-3 rounded-[8px] border border-[#dcdcdc] font-['Inter',_sans-serif] text-xs font-medium text-[#8a8a8a] opacity-50 cursor-not-allowed">
+                        ← Previous
+                    </span>
+                    {% endif %}
+
+                    {% if payments.has_next %}
+                    <a href="?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={{ payment_sort }}&payment_page={{ payments.next_page_number }}"
+                        hx-get="{% url 'funding_overview' %}?item_q={{ item_query }}&category={{ category_filter }}&payment_q={{ payment_query }}&payment_date_from={{ payment_date_from }}&payment_date_to={{ payment_date_to }}&payment_sort={{ payment_sort }}&payment_page={{ payments.next_page_number }}"
+                        hx-target="#payments-table-container" hx-select="#payments-table-container" hx-swap="outerHTML" hx-push-url="true"
+                        class="h-8 flex items-center px-3 rounded-[8px] border border-[#dcdcdc] font-['Inter',_sans-serif] text-xs font-medium text-black hover:bg-[#F8FAFB]">
+                        Next →
+                    </a>
+                    {% else %}
+                    <span class="h-8 flex items-center px-3 rounded-[8px] border border-[#dcdcdc] font-['Inter',_sans-serif] text-xs font-medium text-[#8a8a8a] opacity-50 cursor-not-allowed">
+                        Next →
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 

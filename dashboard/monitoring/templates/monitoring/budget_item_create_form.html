@@ -1,9 +1,17 @@
 {% extends "monitoring/base.html" %}
 {% load static %}
 
-{% block title %}Record Refund Payment{% endblock %}
+{% block title %}Add Budget Line Item{% endblock %}
 
 {% block content %}
+<!-- Tom Select: same searchable-dropdown treatment as the cooperator field
+     on Add Project (see project_form.html) — turns the plain project
+     <select> into a type-to-search dropdown without changing how the form
+     submits. Skipped entirely when the project field is locked (see the
+     guard in the script below) since there's nothing to search when only
+     one option exists. -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <div class="flex min-h-full flex-col gap-2.5 rounded-[20px] bg-[#eeeeee] p-5">
 
     {% if messages %}
@@ -19,27 +27,27 @@
 
     <div>
         <a href="{{ cancel_url }}" class="text-sm text-[#8a8a8a] hover:underline">← Back</a>
-        <h1 class="font-['Arial-Regular',_sans-serif] text-[32px] text-black leading-tight">Record Refund Payment</h1>
+        <h1 class="font-['Arial-Regular',_sans-serif] text-[32px] text-black leading-tight">Add Budget Line Item</h1>
         {% if project %}
         <p class="font-['Inter',_sans-serif] text-[#8a8a8a]">
-            {{ project.title }} · {{ project.cooperator.name }} · Outstanding: ₱{{ project.remaining_balance|floatformat:2 }}
+            {{ project.title }} · {{ project.cooperator.name }}
         </p>
         {% else %}
         <p class="font-['Inter',_sans-serif] text-[#8a8a8a]">
-            Pick a project below, then log the payment against one of its unpaid installments.
+            Pick a project below, then break down its approved budget by category.
         </p>
         {% endif %}
     </div>
 
     <div class="rounded-[20px] bg-white p-5 max-w-2xl">
-        <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">
+        <form method="post" class="flex flex-col gap-4">
             {% csrf_token %}
 
             {% if project %}
             <!-- Project is locked to the one this page was opened from —
                  the disabled select still needs a hidden input alongside it
                  since browsers never submit a disabled field's value; the
-                 view sets payment.project explicitly either way, but this
+                 view sets item.project explicitly either way, but this
                  keeps the form's own validation (which also checks
                  cleaned_data) happy without relying on that. -->
             <div class="flex flex-col gap-1">
@@ -66,11 +74,6 @@
                     {{ field.label }}{% if field.field.required %} *{% endif %}
                 </label>
                 {{ field }}
-                {% if field.name == 'installment' %}
-                <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">
-                    Optional — only unpaid installments are listed. Leave blank for a payment not tied to a specific due date.
-                </span>
-                {% endif %}
                 {% if field.help_text %}
                 <span class="font-['Inter',_sans-serif] text-xs text-[#8a8a8a]">{{ field.help_text }}</span>
                 {% endif %}
@@ -85,7 +88,7 @@
                 <button type="submit"
                     class="h-11 rounded-[10px] px-6 font-['Outfit',_sans-serif] text-sm text-white"
                     style="background: linear-gradient(270deg, rgba(53,185,254,1) 0%, rgba(123,139,253,1) 100%);">
-                    Record Payment
+                    Add Budget Item
                 </button>
                 <a href="{{ cancel_url }}" class="font-['Inter',_sans-serif] text-sm text-[#8a8a8a] hover:underline">
                     Cancel
@@ -96,7 +99,7 @@
 </div>
 
 <style>
-    form select, form input[type="text"], form input[type="number"], form input[type="date"] {
+    form select, form input[type="text"], form input[type="number"] {
         height: 44px;
         border-radius: 10px;
         border: 1px solid #dcdcdc;
@@ -108,5 +111,54 @@
         background: #f2f2f2;
         color: #8a8a8a;
     }
+
+    /* Tom Select replaces the plain <select> with its own markup, so the
+       generic "form select" rule above no longer reaches it — these
+       target Tom Select's own classes instead, to match the same look. */
+    .ts-wrapper.single .ts-control {
+        min-height: 44px;
+        border-radius: 10px;
+        border: 1px solid #dcdcdc;
+        padding: 0 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+    }
+    .ts-wrapper.focus .ts-control {
+        border-color: #09ACED;
+        box-shadow: 0 0 0 1px #09ACED;
+    }
+    .ts-dropdown {
+        border-radius: 10px;
+        border: 1px solid #dcdcdc;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        overflow: hidden;
+    }
+    .ts-dropdown .active {
+        background-color: #E6F7FF;
+        color: #09ACED;
+    }
 </style>
+
+<script>
+    // Only enhance the project field when it's an actual live dropdown —
+    // when reached from a project's own page it's locked/disabled (see
+    // the project-locked branch in the template above), and Tom Select
+    // on a disabled, single-option select has nothing useful to search.
+    document.addEventListener('DOMContentLoaded', function () {
+        var projectSelect = document.getElementById('id_project');
+        if (projectSelect && !projectSelect.disabled && window.TomSelect) {
+            new TomSelect(projectSelect, {
+                create: false,
+                placeholder: 'Search Projects…',
+                // BudgetLineItemCreateForm sorts the queryset by title
+                // already — keep that order instead of Tom Select's own
+                // search-relevance resort.
+                sortField: { field: '$order', direction: 'asc' },
+            });
+        }
+    });
+</script>
 {% endblock %}
